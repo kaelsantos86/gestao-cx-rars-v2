@@ -1,4 +1,5 @@
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -7,17 +8,68 @@
   color: var(--text);
   font: inherit;
   line-height: 1.5;
+}
+
+.field textarea {
   resize: vertical;
 }
 
+.field select {
+  min-height: 50px;
+  padding-right: 38px;
+}
+
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
   outline: 2px solid rgba(20, 107, 69, .18);
   border-color: var(--accent);
 }
 
 .field input:disabled,
 .field textarea:disabled,
+.field select:disabled,
 button:disabled {
   cursor: not-allowed;
+}
+
+.confirmationRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.confirmationRow input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+}
+
+.confirmationRow span {
+  display: grid;
+  gap: 5px;
+}
+
+.confirmationRow strong {
+  line-height: 1.35;
+}
+
+.confirmationRow small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .field select {
+    min-height: 54px;
+    font-size: 16px;
+  }
+
+  .field textarea {
+    font-size: 16px;
+  }
 }
