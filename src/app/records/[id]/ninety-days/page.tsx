@@ -44,13 +44,26 @@ async function saveConversation(formData: FormData) {
   const auth = await requireManager();
   if (!auth) redirect('/login');
 
-  const { data: record, error: fetchError } = await auth.supabase
-    .from('module_records')
-    .select('payload')
-    .eq('id', recordId)
-    .eq('module_type', 'ninety_days')
-    .single();
+  const [{ data: record, error: fetchError }, { data: submitted, error: responseError }] = await Promise.all([
+    auth.supabase
+      .from('module_records')
+      .select('payload')
+      .eq('id', recordId)
+      .eq('module_type', 'ninety_days')
+      .single(),
+    auth.supabase
+      .from('participant_responses')
+      .select('id')
+      .eq('record_id', recordId)
+      .eq('is_submitted', true)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
   if (fetchError) throw fetchError;
+  if (responseError) throw responseError;
+  if (!submitted) redirect(`/records/${recordId}/ninety-days?needsParticipant=1`);
 
   const priorities = [1, 2, 3]
     .map((index) => ({
@@ -176,6 +189,8 @@ export default async function NinetyDayManagerPage({
   const participantSubmitted = Boolean(record.latestResponse?.is_submitted);
   const participantPath = query.invite ? `/participate/ninety-days/${query.invite}` : null;
   const completed = record.status === 'completed';
+  const conversationReady = participantSubmitted && !completed;
+  const conclusionReady = participantSubmitted && Boolean(payload.conversationSavedAt) && !completed;
   const priorities = Array.isArray(payload.priorities) ? payload.priorities : [];
 
   return (
@@ -193,7 +208,7 @@ export default async function NinetyDayManagerPage({
       {query.completed && <div className="notice" style={{ marginBottom: 18 }}>Avaliação concluída. As respostas foram bloqueadas e o registro agora pode alimentar o primeiro PDI e o Talento em Evidência.</div>}
       {query.conversation === 'saved' && <div className="notice" style={{ marginBottom: 18 }}>Conversa, acordos e próximo ciclo salvos.</div>}
       {query.conversation === 'required' && <div className="notice" style={{ marginBottom: 18 }}>Registre direção, síntese e compromissos da conversa antes de concluir.</div>}
-      {query.needsParticipant && <div className="notice" style={{ marginBottom: 18 }}>A autoavaliação do colaborador precisa ser enviada antes da conclusão.</div>}
+      {query.needsParticipant && <div className="notice" style={{ marginBottom: 18 }}>A autoavaliação do colaborador precisa ser enviada antes da conversa e da conclusão.</div>}
 
       <section className="card">
         <p className="eyebrow">Base da avaliação</p>
@@ -269,52 +284,61 @@ export default async function NinetyDayManagerPage({
       <section className="card" style={{ marginTop: 18 }}>
         <p className="eyebrow">Conversa e próximo ciclo</p>
         <h2>Registrar síntese e acordos</h2>
+        {!participantSubmitted && !completed && (
+          <div className="notice" style={{ marginBottom: 18 }}>
+            Esta etapa será liberada após o envio da autoavaliação. Assim, a leitura do colaborador permanece independente antes da conversa conjunta.
+          </div>
+        )}
         <form action={saveConversation} className="grid" style={{ gap: 18 }}>
           <input type="hidden" name="recordId" value={record.id} />
-          <div className="field">
-            <label htmlFor="agreedDirection">Direção acordada</label>
-            <select id="agreedDirection" name="agreedDirection" defaultValue={String(payload.agreedDirection ?? '')} disabled={completed} required>
-              <option value="" disabled>Selecione</option>
-              {ninetyDayDirections.map((direction) => <option key={direction.value} value={direction.value}>{direction.label}</option>)}
-            </select>
-          </div>
-
-          <div className="grid grid2">
-            {ninetyDayConclusionFields.map(([key, label]) => (
-              <div className="field" key={key}>
-                <label htmlFor={key}>{label}</label>
-                <textarea id={key} name={key} rows={4} defaultValue={String(payload[key] ?? '')} disabled={completed} required />
+          <fieldset disabled={!conversationReady} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, opacity: conversationReady ? 1 : .58 }}>
+            <div className="grid" style={{ gap: 18 }}>
+              <div className="field">
+                <label htmlFor="agreedDirection">Direção acordada</label>
+                <select id="agreedDirection" name="agreedDirection" defaultValue={String(payload.agreedDirection ?? '')} required>
+                  <option value="" disabled>Selecione</option>
+                  {ninetyDayDirections.map((direction) => <option key={direction.value} value={direction.value}>{direction.label}</option>)}
+                </select>
               </div>
-            ))}
-          </div>
 
-          <div>
-            <p className="eyebrow">Até 3 prioridades</p>
-            <h3>Resultado, evidência, data e apoio</h3>
-            <div className="grid" style={{ gap: 14 }}>
-              {[1, 2, 3].map((index) => {
-                const priority = priorities[index - 1] ?? {};
-                return (
-                  <div key={index} style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 14 }}>
-                    <strong>Prioridade {index}</strong>
-                    <div className="grid grid2" style={{ marginTop: 10 }}>
-                      <div className="field"><label>Resultado esperado</label><textarea name={`priority${index}Result`} rows={3} defaultValue={priority.result ?? ''} disabled={completed} /></div>
-                      <div className="field"><label>Evidência de evolução</label><textarea name={`priority${index}Evidence`} rows={3} defaultValue={priority.evidence ?? ''} disabled={completed} /></div>
-                      <div className="field"><label>Data</label><input name={`priority${index}Date`} type="date" defaultValue={priority.date ?? ''} disabled={completed} /></div>
-                      <div className="field"><label>Apoio necessário</label><textarea name={`priority${index}Support`} rows={3} defaultValue={priority.support ?? ''} disabled={completed} /></div>
-                    </div>
+              <div className="grid grid2">
+                {ninetyDayConclusionFields.map(([key, label]) => (
+                  <div className="field" key={key}>
+                    <label htmlFor={key}>{label}</label>
+                    <textarea id={key} name={key} rows={4} defaultValue={String(payload[key] ?? '')} required />
                   </div>
-                );
-              })}
+                ))}
+              </div>
+
+              <div>
+                <p className="eyebrow">Até 3 prioridades</p>
+                <h3>Resultado, evidência, data e apoio</h3>
+                <div className="grid" style={{ gap: 14 }}>
+                  {[1, 2, 3].map((index) => {
+                    const priority = priorities[index - 1] ?? {};
+                    return (
+                      <div key={index} style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 14 }}>
+                        <strong>Prioridade {index}</strong>
+                        <div className="grid grid2" style={{ marginTop: 10 }}>
+                          <div className="field"><label>Resultado esperado</label><textarea name={`priority${index}Result`} rows={3} defaultValue={priority.result ?? ''} /></div>
+                          <div className="field"><label>Evidência de evolução</label><textarea name={`priority${index}Evidence`} rows={3} defaultValue={priority.evidence ?? ''} /></div>
+                          <div className="field"><label>Data</label><input name={`priority${index}Date`} type="date" defaultValue={priority.date ?? ''} /></div>
+                          <div className="field"><label>Apoio necessário</label><textarea name={`priority${index}Support`} rows={3} defaultValue={priority.support ?? ''} /></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid2">
+                <div className="field"><label htmlFor="nextFollowUp">Próximo acompanhamento</label><input id="nextFollowUp" name="nextFollowUp" type="date" defaultValue={String(payload.nextFollowUp ?? '')} /></div>
+                <div className="field"><label htmlFor="nextCycleReview">Próxima revisão de ciclo</label><input id="nextCycleReview" name="nextCycleReview" type="date" defaultValue={String(payload.nextCycleReview ?? '')} /></div>
+              </div>
+
+              {!completed && <div><button className="button buttonSecondary" type="submit">Salvar conversa e próximo ciclo</button></div>}
             </div>
-          </div>
-
-          <div className="grid grid2">
-            <div className="field"><label htmlFor="nextFollowUp">Próximo acompanhamento</label><input id="nextFollowUp" name="nextFollowUp" type="date" defaultValue={String(payload.nextFollowUp ?? '')} disabled={completed} /></div>
-            <div className="field"><label htmlFor="nextCycleReview">Próxima revisão de ciclo</label><input id="nextCycleReview" name="nextCycleReview" type="date" defaultValue={String(payload.nextCycleReview ?? '')} disabled={completed} /></div>
-          </div>
-
-          {!completed && <div><button className="button buttonSecondary" type="submit">Salvar conversa e próximo ciclo</button></div>}
+          </fieldset>
         </form>
       </section>
 
@@ -325,8 +349,14 @@ export default async function NinetyDayManagerPage({
         <p className="muted"><strong>Autoavaliação:</strong> {participantSubmitted ? 'enviada' : 'ainda não enviada'} · <strong>Conversa:</strong> {payload.conversationSavedAt ? 'registrada' : 'a registrar'}</p>
         <form action={concludeNinetyDay}>
           <input type="hidden" name="recordId" value={record.id} />
-          <button className="button" type="submit" disabled={completed} style={{ opacity: completed ? .5 : 1 }}>
-            {completed ? 'Avaliação concluída' : 'Concluir Avaliação de 90 dias'}
+          <button className="button" type="submit" disabled={completed || !conclusionReady} style={{ opacity: completed || !conclusionReady ? .5 : 1 }}>
+            {completed
+              ? 'Avaliação concluída'
+              : !participantSubmitted
+                ? 'Aguardando autoavaliação'
+                : !payload.conversationSavedAt
+                  ? 'Registre a conversa para concluir'
+                  : 'Concluir Avaliação de 90 dias'}
           </button>
         </form>
       </section>
