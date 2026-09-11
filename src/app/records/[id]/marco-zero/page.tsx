@@ -86,7 +86,7 @@ export default async function MarcoZeroManagerPage({
         <div>
           <p className="eyebrow">Marco Zero · Gestor</p>
           <h1 className="pageTitle">{record.employee.display_name}</h1>
-          <p className="lead">{record.employee.current_role ?? 'Função não informada'} · {record.employee.current_squad ?? 'Frente não informada'}</p>
+          <p className="lead">{record.employee.role_title ?? 'Função não informada'} · {record.employee.current_squad ?? 'Frente não informada'}</p>
         </div>
         <span className="badge badgeAccent">{statusLabel(record.status)}</span>
       </section>
