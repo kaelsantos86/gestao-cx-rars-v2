@@ -1,7 +1,7 @@
 import { hasSupabaseEnv } from '@/lib/env';
 import { requireManager } from '@/lib/auth';
 
-type SupportedManagerModule = 'marco_zero' | 'ninety_days';
+type SupportedManagerModule = 'marco_zero' | 'ninety_days' | 'competencies';
 
 async function getManagerRecord(id: string, moduleType: SupportedManagerModule) {
   if (!hasSupabaseEnv()) return null;
@@ -61,6 +61,10 @@ export async function getNinetyDayRecord(id: string) {
   return getManagerRecord(id, 'ninety_days');
 }
 
+export async function getCompetencyRecord(id: string) {
+  return getManagerRecord(id, 'competencies');
+}
+
 export async function getParticipantMarcoZero(token: string) {
   if (!hasSupabaseEnv()) return null;
 
@@ -95,6 +99,27 @@ export async function getParticipantNinetyDay(token: string) {
     locked: boolean;
     employee_name: string;
     cycle_label: string | null;
+    latest_response: Record<string, unknown>;
+    latest_submitted: boolean;
+  };
+}
+
+export async function getParticipantCompetencies(token: string) {
+  if (!hasSupabaseEnv()) return null;
+
+  const auth = await import('@/lib/supabase/server');
+  const supabase = await auth.createClient();
+  const { data, error } = await supabase.rpc('get_competency_participant_record', { raw_token: token });
+
+  if (error) return null;
+  return data as {
+    record_id: string;
+    module_type: string;
+    status: string;
+    locked: boolean;
+    employee_name: string;
+    cycle_label: string | null;
+    shared_context: Record<string, string | null>;
     latest_response: Record<string, unknown>;
     latest_submitted: boolean;
   };
