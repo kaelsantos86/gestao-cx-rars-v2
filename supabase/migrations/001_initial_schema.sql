@@ -20,7 +20,7 @@ create table public.profiles (
 create table public.employees (
   id uuid primary key default gen_random_uuid(),
   display_name text not null,
-  current_role text,
+  role_title text,
   current_squad text,
   photo_path text,
   active boolean not null default true,
