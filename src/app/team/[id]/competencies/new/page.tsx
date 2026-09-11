@@ -2,9 +2,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { requireManager } from '@/lib/auth';
 import { getEmployee } from '@/lib/data/team';
+import { CompetencyAssessmentCard, CompetencySubmitButton } from '@/components/competency-assessment-card';
 import {
   competencies,
-  competencyBands,
   competencyContextFields,
   competencyMoments,
   competencyRoleProfiles,
@@ -15,7 +15,7 @@ import {
 const contextPlaceholders: Record<string, string> = {
   semesterContext: 'Resuma mudanças, projetos, prioridades e resultados que contextualizam a leitura do semestre.',
   demonstrationOpportunities: 'Registre onde houve exposição real para demonstrar comportamentos e onde o contexto limitou a observação.',
-  priorAgreements: 'Retome acordos relevantes de Marco Zero, 90 dias, feedbacks ou PDI concluídos.',
+  priorAgreements: 'Retome acordos profissionais vigentes que você efetivamente reconhece. Se ainda não houver fonte migrada da V1, não recrie histórico artificialmente.',
 };
 
 function normalizeScore(value: FormDataEntryValue | null) {
@@ -60,7 +60,7 @@ async function createCompetencyReview(formData: FormData) {
   const context = Object.fromEntries(
     competencyContextFields.map(([key]) => [key, String(formData.get(key) ?? '').trim()]),
   );
-  if (Object.values(context).some((value) => !value)) throw new Error('missing_context');
+  if (!context.semesterContext || !context.demonstrationOpportunities) throw new Error('missing_context');
 
   const { data: sourceRecords, error: sourceError } = await auth.supabase
     .from('module_records')
@@ -162,50 +162,26 @@ export default async function NewCompetencyPage({ params }: { params: Promise<{ 
             </div>
           </div>
           <div className="grid grid2" style={{ marginTop: 16 }}>
-            {competencyContextFields.map(([key, label]) => (
-              <div className="field" key={key}>
-                <label htmlFor={key}>{label}</label>
-                <textarea id={key} name={key} rows={4} required placeholder={contextPlaceholders[key]} />
-              </div>
-            ))}
+            {competencyContextFields.map(([key, label]) => {
+              const optional = key === 'priorAgreements';
+              return (
+                <div className="field" key={key}>
+                  <label htmlFor={key}>{label}{optional && <span className="muted"> (opcional)</span>}</label>
+                  <textarea id={key} name={key} rows={4} required={!optional} placeholder={contextPlaceholders[key]} />
+                  {optional && <small className="fieldHelp">Não recrie fatos ou acordos apenas para preencher a sequência da plataforma.</small>}
+                </div>
+              );
+            })}
           </div>
         </section>
 
         <section className="card">
           <p className="eyebrow">2. Avaliar</p>
           <h2>Sete competências oficiais</h2>
-          <p className="muted">Escolha a faixa, defina a nota dentro do intervalo oficial e registre situação + comportamento + efeito. O comentário deve ficar pronto para copiar ao +Evolução.</p>
-          <div className="grid" style={{ gap: 18 }}>
+          <p className="muted">Os cards começam recolhidos para facilitar o uso no celular. Abra uma competência por vez, escolha a faixa e registre nota, evidência e comentário. A própria faixa controla o intervalo permitido da nota.</p>
+          <div className="grid" style={{ gap: 12 }}>
             {competencies.map((competency) => (
-              <article key={competency.key} style={{ border: '1px solid var(--line)', borderRadius: 16, padding: 16 }}>
-                <h3 style={{ marginTop: 0 }}>{competency.label}</h3>
-                <p className="muted" style={{ marginTop: -4 }}><strong>{competency.tagline}</strong> {competency.help}</p>
-                <div className="grid grid2">
-                  <div className="field">
-                    <label htmlFor={`assessment_${competency.key}_band`}>Faixa</label>
-                    <select id={`assessment_${competency.key}_band`} name={`assessment_${competency.key}_band`} defaultValue="" required>
-                      <option value="" disabled>Selecione</option>
-                      {competencyBands.map((band) => <option key={band.value} value={band.value}>{band.label} · {band.min.toFixed(2)}–{band.max.toFixed(2)}</option>)}
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`assessment_${competency.key}_score`}>Nota dentro da faixa</label>
-                    <input id={`assessment_${competency.key}_score`} name={`assessment_${competency.key}_score`} type="number" min="0" max="1.2" step="0.01" inputMode="decimal" placeholder="Ex.: 1.06" required />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`assessment_${competency.key}_evidence`}>Evidências observáveis</label>
-                    <textarea id={`assessment_${competency.key}_evidence`} name={`assessment_${competency.key}_evidence`} rows={4} required placeholder="Situação + comportamento + efeito. Inclua mais de uma situação quando estiver avaliando consistência." />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`assessment_${competency.key}_officialComment`}>Comentário para a ferramenta oficial</label>
-                    <textarea id={`assessment_${competency.key}_officialComment`} name={`assessment_${competency.key}_officialComment`} rows={4} required placeholder="Escreva uma devolutiva equilibrada, conectada à competência e pronta para copiar ao +Evolução." />
-                  </div>
-                </div>
-                <div className="field" style={{ marginTop: 12 }}>
-                  <label htmlFor={`assessment_${competency.key}_nextStep`}>Próximo passo ou acordo <span className="muted">(opcional)</span></label>
-                  <textarea id={`assessment_${competency.key}_nextStep`} name={`assessment_${competency.key}_nextStep`} rows={3} placeholder="Comportamento a reforçar, desenvolver ou acompanhar de forma proporcional ao ciclo." />
-                </div>
-              </article>
+              <CompetencyAssessmentCard key={competency.key} competency={competency} />
             ))}
           </div>
         </section>
@@ -218,7 +194,7 @@ export default async function NewCompetencyPage({ params }: { params: Promise<{ 
           </div>
         </section>
 
-        <div><button className="button" type="submit">Criar Avaliação de Competências</button></div>
+        <div><CompetencySubmitButton /></div>
       </form>
     </main>
   );
