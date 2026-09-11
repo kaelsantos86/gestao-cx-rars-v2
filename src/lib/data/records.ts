@@ -20,7 +20,7 @@ export async function getMarcoZeroRecord(id: string) {
   const [{ data: employee, error: employeeError }, { data: responses, error: responseError }] = await Promise.all([
     supabase
       .from('employees')
-      .select('id, display_name, current_role, current_squad')
+      .select('id, display_name, role_title, current_squad')
       .eq('id', record.employee_id)
       .maybeSingle(),
     supabase
