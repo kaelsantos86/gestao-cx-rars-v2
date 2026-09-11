@@ -57,9 +57,9 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
             <p className="eyebrow">Timeline</p>
             <h2 style={{ margin: 0, fontSize: 27 }}>Trajetória profissional</h2>
           </div>
-          <button className="button" type="button" disabled title="Será habilitado com os módulos funcionais" style={{ opacity: .55 }}>
-            Novo registro
-          </button>
+          <Link className="button" href={`/team/${employee.id}/marco-zero/new`}>
+            Novo Marco Zero
+          </Link>
         </div>
 
         {timeline.length === 0 ? (
