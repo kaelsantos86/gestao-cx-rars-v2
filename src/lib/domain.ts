@@ -18,6 +18,7 @@ export type RecordStatus =
   | 'cancelled';
 
 export type FeedbackKind = 'orientation' | 'recognition' | 'promotion';
+export type ProfessionalMoment = 'entry' | 'consolidation' | 'established' | 'transition';
 
 export interface Employee {
   id: string;
@@ -25,6 +26,9 @@ export interface Employee {
   currentRole?: string;
   currentSquad?: string;
   photoPath?: string;
+  professionalMoment: ProfessionalMoment;
+  v2EntryModule: ModuleType;
+  journeyNote?: string;
   active: boolean;
 }
 
