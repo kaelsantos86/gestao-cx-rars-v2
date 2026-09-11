@@ -1,0 +1,23 @@
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 13px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+  outline: 2px solid rgba(20, 107, 69, .18);
+  border-color: var(--accent);
+}
+
+.field input:disabled,
+.field textarea:disabled,
+button:disabled {
+  cursor: not-allowed;
+}
