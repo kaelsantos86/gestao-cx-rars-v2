@@ -2,6 +2,35 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEmployee, getEmployeeTimeline } from '@/lib/data/team';
 
+const journey = [
+  { key: 'marco_zero', label: 'Marco Zero' },
+  { key: 'ninety_days', label: '90 dias' },
+  { key: 'competencies', label: 'Competências' },
+  { key: 'pdi', label: 'PDI Evolutivo' },
+  { key: 'feedback', label: 'Feedback' },
+  { key: 'talent', label: 'Talento' },
+] as const;
+
+function stepStatus(key: string, entryModule: string, timelineModules: Set<string>) {
+  if (timelineModules.has(key)) return 'Com registro';
+  if (key === 'feedback' || key === 'talent') return 'Quando aplicável';
+
+  const core = ['marco_zero', 'ninety_days', 'competencies', 'pdi'];
+  const keyIndex = core.indexOf(key);
+  const entryIndex = core.indexOf(entryModule);
+
+  if (keyIndex < entryIndex) return 'Não exigido na entrada V2';
+  if (keyIndex === entryIndex) return 'Ponto de entrada';
+  return 'Etapa futura';
+}
+
+function actionFor(employeeId: string, entryModule: string) {
+  if (entryModule === 'marco_zero') {
+    return { href: `/team/${employeeId}/marco-zero/new`, label: 'Iniciar Marco Zero' };
+  }
+  return null;
+}
+
 export default async function EmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [employee, timeline] = await Promise.all([
@@ -10,6 +39,9 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
   ]);
 
   if (!employee) notFound();
+
+  const timelineModules = new Set(timeline.map((item) => item.module));
+  const action = actionFor(employee.id, employee.v2EntryModule);
 
   return (
     <main className="page">
@@ -35,20 +67,39 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
 
       <section className="grid grid3" style={{ marginTop: 18 }}>
         <article className="card">
-          <p className="eyebrow">Próximo movimento</p>
+          <p className="eyebrow">Momento profissional</p>
+          <h2 style={{ marginBottom: 8 }}>{employee.stage}</h2>
+          <p className="muted">{employee.journeyNote}</p>
+        </article>
+        <article className="card">
+          <p className="eyebrow">Ponto de entrada na V2</p>
           <h2 style={{ marginBottom: 8 }}>{employee.nextMilestone}</h2>
-          <p className="muted">O aplicativo usará esta referência para organizar a agenda de gestão sem transformar acompanhamento em microgestão.</p>
+          <p className="muted">Módulos anteriores não são recriados artificialmente. Registros reais da V1 poderão ser migrados depois como histórico.</p>
         </article>
         <article className="card">
           <p className="eyebrow">Identidade persistente</p>
           <h2 style={{ marginBottom: 8 }}>Histórico único</h2>
           <p className="muted">Todos os ciclos e documentos ficam ligados ao mesmo <code>employee_id</code>, preservando a trajetória ao longo do tempo.</p>
         </article>
-        <article className="card">
-          <p className="eyebrow">Módulos</p>
-          <h2 style={{ marginBottom: 8 }}>6 integrados</h2>
-          <p className="muted">Marco Zero, 90 dias, Competências, PDI, Feedback e Talento compartilham fontes com regras explícitas.</p>
-        </article>
+      </section>
+
+      <section className="card" style={{ marginTop: 18 }}>
+        <p className="eyebrow">Jornada integrada</p>
+        <h2 style={{ marginTop: 0 }}>Fluxo aplicável a este colaborador</h2>
+        <div className="grid grid3">
+          {journey.map((step, index) => {
+            const status = stepStatus(step.key, employee.v2EntryModule, timelineModules);
+            return (
+              <div key={step.key} style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 14 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <span className="avatar" style={{ width: 30, height: 30, borderRadius: 10, fontSize: 12 }}>{index + 1}</span>
+                  <strong>{step.label}</strong>
+                </div>
+                <div style={{ marginTop: 10 }}><span className="badge">{status}</span></div>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section style={{ marginTop: 28 }}>
@@ -57,13 +108,17 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
             <p className="eyebrow">Timeline</p>
             <h2 style={{ margin: 0, fontSize: 27 }}>Trajetória profissional</h2>
           </div>
-          <Link className="button" href={`/team/${employee.id}/marco-zero/new`}>
-            Novo Marco Zero
-          </Link>
+          {action ? (
+            <Link className="button" href={action.href}>{action.label}</Link>
+          ) : (
+            <span className="button buttonSecondary" aria-disabled="true" style={{ opacity: .65, cursor: 'default' }}>
+              Próximo: {employee.nextMilestone}
+            </span>
+          )}
         </div>
 
         {timeline.length === 0 ? (
-          <div className="card empty">Ainda não há registros nesta trajetória. A migração da V1 será feita sem substituir ou apagar as fontes antigas.</div>
+          <div className="card empty">Ainda não há registros nesta trajetória. Isso não significa que o colaborador deva começar pelo Marco Zero: o ponto de entrada acima define o ciclo correto, enquanto a migração da V1 preservará apenas fontes que realmente existirem.</div>
         ) : (
           <div className="timeline">
             {timeline.map((item) => (
