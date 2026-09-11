@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { AppHeader } from '@/components/app-header';
 import './globals.css';
 import './forms.css';
 
@@ -12,22 +12,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <body>
-        <header className="topbar">
-          <div className="topbarInner">
-            <Link className="brand" href="/">
-              <span className="brandMark">CX</span>
-              <span>
-                <strong>Gestão CX RARS</strong>
-                <small>V2.0</small>
-              </span>
-            </Link>
-            <nav className="mainNav" aria-label="Navegação principal">
-              <Link href="/">Home</Link>
-              <Link href="/team">Minha Equipe</Link>
-              <Link href="/login">Acesso</Link>
-            </nav>
-          </div>
-        </header>
+        <AppHeader />
         {children}
       </body>
     </html>
