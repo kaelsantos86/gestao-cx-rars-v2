@@ -95,7 +95,7 @@ export async function getParticipantNinetyDay(token: string) {
     locked: boolean;
     employee_name: string;
     cycle_label: string | null;
-    latest_response: Record<string, string | number>;
+    latest_response: Record<string, unknown>;
     latest_submitted: boolean;
   };
 }
