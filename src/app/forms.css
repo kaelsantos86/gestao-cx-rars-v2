@@ -33,6 +33,14 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.fieldHelp {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .confirmationRow {
   display: flex;
   gap: 12px;
@@ -63,6 +71,59 @@ button:disabled {
   line-height: 1.45;
 }
 
+.competencyAccordion {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: white;
+  overflow: hidden;
+}
+
+.competencySummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.competencySummary::-webkit-details-marker {
+  display: none;
+}
+
+.competencySummary strong,
+.competencySummary small {
+  display: block;
+}
+
+.competencySummary strong {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.competencySummary small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.competencyChevron {
+  font-size: 20px;
+  line-height: 1;
+  transition: transform .18s ease;
+}
+
+.competencyAccordion[open] .competencyChevron {
+  transform: rotate(180deg);
+}
+
+.competencyAccordionBody {
+  border-top: 1px solid var(--line);
+  padding: 16px;
+}
+
 @media (max-width: 640px) {
   .field select {
     min-height: 54px;
@@ -71,5 +132,19 @@ button:disabled {
 
   .field textarea {
     font-size: 16px;
+  }
+
+  .competencySummary {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .competencySummary .badge {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .competencySummary .competencyChevron {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
 }
