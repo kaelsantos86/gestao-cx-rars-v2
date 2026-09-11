@@ -31,6 +31,9 @@ function actionFor(employeeId: string, nextMilestone: string) {
   if (nextMilestone === 'Avaliação de 90 dias') {
     return { href: `/team/${employeeId}/ninety-days/new`, label: 'Iniciar Avaliação de 90 dias' };
   }
+  if (nextMilestone === 'Competências') {
+    return { href: `/team/${employeeId}/competencies/new`, label: 'Iniciar Avaliação de Competências' };
+  }
   return null;
 }
 
@@ -141,6 +144,9 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                   )}
                   {item.module === 'marco_zero' && (
                     <Link className="button buttonSecondary" href={`/records/${item.id}/marco-zero`} style={{ marginTop: 8 }}>Abrir Marco Zero</Link>
+                  )}
+                  {item.module === 'competencies' && (
+                    <Link className="button buttonSecondary" href={`/records/${item.id}/competencies`} style={{ marginTop: 8 }}>Abrir Competências</Link>
                   )}
                 </div>
               </article>
