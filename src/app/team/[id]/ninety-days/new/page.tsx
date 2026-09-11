@@ -4,6 +4,13 @@ import { requireManager } from '@/lib/auth';
 import { getEmployee } from '@/lib/data/team';
 import { ninetyDayDimensions, ninetyDayManagerPreparationFields } from '@/lib/ninety-days';
 
+const preparationPlaceholders: Record<string, string> = {
+  advances: 'Registre 2 ou 3 avanços ou contribuições observáveis. Prefira entrega ou comportamento + contexto + efeito gerado.',
+  strengths: 'Nomeie capacidades específicas que já aparecem com consistência e explique em quais fatos elas se apoiam.',
+  developmentPriorities: 'Escolha o que mais limita o próximo passo neste momento e explique por que isso merece prioridade no ciclo seguinte.',
+  routeAdjustment: 'Registre uma hipótese a validar sobre prioridade, apoio, autonomia, relação ou expectativa. Evite transformar hipótese em conclusão.',
+};
+
 async function createNinetyDayReview(formData: FormData) {
   'use server';
 
@@ -128,7 +135,7 @@ export default async function NewNinetyDayPage({
       <div className="notice" style={{ marginBottom: 18 }}>
         {sourceMarcoZero
           ? 'Há um Marco Zero concluído e ele será vinculado automaticamente como fonte desta avaliação.'
-          : 'Não há Marco Zero concluído na V2. Isso é esperado para pessoas que entraram pela etapa de consolidação; confirme abaixo que a devolutiva inicial já ocorreu.'}
+          : 'Não há Marco Zero concluído na V2. Isso é esperado para pessoas que entraram pela etapa de consolidação; confirme abaixo que o alinhamento inicial já ocorreu.'}
       </div>
       {query.basis && <div className="notice" style={{ marginBottom: 18 }}>Confirme a base da avaliação para continuar sem criar um Marco Zero artificial.</div>}
 
@@ -145,8 +152,12 @@ export default async function NewNinetyDayPage({
                 <label htmlFor={`rating_${dimension.key}`}>{dimension.label}</label>
                 <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>{dimension.help}</div>
                 <select id={`rating_${dimension.key}`} name={`rating_${dimension.key}`} required defaultValue="">
-                  <option value="" disabled>Selecione</option>
-                  {[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}</option>)}
+                  <option value="" disabled>Selecione uma nota</option>
+                  <option value="1">1 · Muito abaixo do necessário hoje</option>
+                  <option value="2">2 · Abaixo do adequado para o momento</option>
+                  <option value="3">3 · Adequado para o momento</option>
+                  <option value="4">4 · Acima do adequado para o momento</option>
+                  <option value="5">5 · Acima do esperado para o ciclo</option>
                 </select>
               </div>
             ))}
@@ -160,22 +171,31 @@ export default async function NewNinetyDayPage({
             {ninetyDayManagerPreparationFields.map(([key, label]) => (
               <div className="field" key={key}>
                 <label htmlFor={key}>{label}</label>
-                <textarea id={key} name={key} rows={4} required placeholder="Registre fatos, contexto, efeito e direção para a conversa." />
+                <textarea
+                  id={key}
+                  name={key}
+                  rows={4}
+                  required
+                  placeholder={preparationPlaceholders[key] ?? 'Registre fatos observáveis e o que eles significam para a conversa.'}
+                />
               </div>
             ))}
           </div>
           <div className="field" style={{ marginTop: 12 }}>
             <label htmlFor="privateNotes">Notas privadas do gestor</label>
-            <textarea id="privateNotes" name="privateNotes" rows={3} placeholder="Hipóteses futuras ou pontos para observação. Não use para esconder acordo que afete a pessoa." />
+            <textarea id="privateNotes" name="privateNotes" rows={3} placeholder="Registre apenas hipóteses futuras ou pontos para observação. Acordos, expectativas e decisões que afetam a pessoa devem ficar nos campos compartilhados da avaliação." />
           </div>
         </section>
 
         {!sourceMarcoZero && (
           <section className="card">
             <p className="eyebrow">Base da avaliação</p>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <input type="checkbox" name="initialFeedbackConfirmed" required style={{ marginTop: 4 }} />
-              <span>Confirmo que a devolutiva/alinhamento inicial já ocorreu anteriormente e que não há necessidade de recriar um Marco Zero apenas para completar a sequência da plataforma.</span>
+            <label className="confirmationRow">
+              <input type="checkbox" name="initialFeedbackConfirmed" required />
+              <span>
+                <strong>Confirmo que o alinhamento inicial já ocorreu.</strong>
+                <small>Não é necessário recriar um Marco Zero apenas para completar a sequência da plataforma.</small>
+              </span>
             </label>
           </section>
         )}
