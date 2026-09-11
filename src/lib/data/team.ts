@@ -18,6 +18,26 @@ const moduleLabels: Record<EmployeeSummary['v2EntryModule'], string> = {
   talent: 'Talento em Evidência',
 };
 
+function deriveNextMilestone(entryModule: EmployeeSummary['v2EntryModule'], completed: Set<string>) {
+  if (entryModule === 'marco_zero') {
+    if (!completed.has('marco_zero')) return 'Marco Zero';
+    if (!completed.has('ninety_days')) return 'Avaliação de 90 dias';
+    if (!completed.has('pdi')) return 'PDI Evolutivo';
+  }
+
+  if (entryModule === 'ninety_days') {
+    if (!completed.has('ninety_days')) return 'Avaliação de 90 dias';
+    if (!completed.has('pdi')) return 'PDI Evolutivo';
+  }
+
+  if (entryModule === 'competencies') {
+    if (!completed.has('competencies')) return 'Competências';
+    if (!completed.has('pdi')) return 'PDI Evolutivo';
+  }
+
+  return moduleLabels[entryModule];
+}
+
 function mapEmployee(row: {
   id: string;
   display_name: string;
@@ -26,7 +46,7 @@ function mapEmployee(row: {
   professional_moment: EmployeeSummary['professionalMoment'];
   v2_entry_module: EmployeeSummary['v2EntryModule'];
   journey_note: string | null;
-}): EmployeeSummary {
+}, completed = new Set<string>()): EmployeeSummary {
   return {
     id: row.id,
     displayName: row.display_name,
@@ -36,7 +56,7 @@ function mapEmployee(row: {
     professionalMoment: row.professional_moment,
     v2EntryModule: row.v2_entry_module,
     journeyNote: row.journey_note ?? 'Ponto de entrada ainda não configurado.',
-    nextMilestone: moduleLabels[row.v2_entry_module],
+    nextMilestone: deriveNextMilestone(row.v2_entry_module, completed),
   };
 }
 
@@ -52,7 +72,25 @@ export async function getTeam(): Promise<EmployeeSummary[]> {
     .order('display_name');
 
   if (error) throw error;
-  return (data ?? []).map(mapEmployee);
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const { data: records, error: recordError } = await supabase
+    .from('module_records')
+    .select('employee_id, module_type')
+    .in('employee_id', rows.map((row) => row.id))
+    .eq('status', 'completed')
+    .is('deleted_at', null);
+  if (recordError) throw recordError;
+
+  const completedByEmployee = new Map<string, Set<string>>();
+  for (const record of records ?? []) {
+    const modules = completedByEmployee.get(record.employee_id) ?? new Set<string>();
+    modules.add(String(record.module_type));
+    completedByEmployee.set(record.employee_id, modules);
+  }
+
+  return rows.map((row) => mapEmployee(row, completedByEmployee.get(row.id) ?? new Set<string>()));
 }
 
 export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
@@ -62,14 +100,25 @@ export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
 
   const auth = await requireManager();
   const supabase = auth!.supabase;
-  const { data, error } = await supabase
-    .from('employees')
-    .select('id, display_name, role_title, current_squad, professional_moment, v2_entry_module, journey_note')
-    .eq('id', id)
-    .maybeSingle();
+  const [{ data, error }, { data: records, error: recordError }] = await Promise.all([
+    supabase
+      .from('employees')
+      .select('id, display_name, role_title, current_squad, professional_moment, v2_entry_module, journey_note')
+      .eq('id', id)
+      .maybeSingle(),
+    supabase
+      .from('module_records')
+      .select('module_type')
+      .eq('employee_id', id)
+      .eq('status', 'completed')
+      .is('deleted_at', null),
+  ]);
 
   if (error) throw error;
-  return data ? mapEmployee(data) : null;
+  if (recordError) throw recordError;
+  if (!data) return null;
+
+  return mapEmployee(data, new Set((records ?? []).map((record) => String(record.module_type))));
 }
 
 export async function getEmployeeTimeline(id: string): Promise<TimelineItem[]> {
