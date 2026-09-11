@@ -5,13 +5,13 @@ import { demoTeam, demoTimeline, type EmployeeSummary, type TimelineItem } from 
 function mapEmployee(row: {
   id: string;
   display_name: string;
-  current_role: string | null;
+  role_title: string | null;
   current_squad: string | null;
 }): EmployeeSummary {
   return {
     id: row.id,
     displayName: row.display_name,
-    currentRole: row.current_role ?? 'Função não informada',
+    currentRole: row.role_title ?? 'Função não informada',
     currentSquad: row.current_squad ?? 'Frente não informada',
     stage: 'Em acompanhamento',
     nextMilestone: 'Ver timeline',
@@ -25,7 +25,7 @@ export async function getTeam(): Promise<EmployeeSummary[]> {
   const supabase = auth!.supabase;
   const { data, error } = await supabase
     .from('employees')
-    .select('id, display_name, current_role, current_squad')
+    .select('id, display_name, role_title, current_squad')
     .eq('active', true)
     .order('display_name');
 
@@ -42,7 +42,7 @@ export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
   const supabase = auth!.supabase;
   const { data, error } = await supabase
     .from('employees')
-    .select('id, display_name, current_role, current_squad')
+    .select('id, display_name, role_title, current_squad')
     .eq('id', id)
     .maybeSingle();
 
