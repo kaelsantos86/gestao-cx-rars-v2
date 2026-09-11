@@ -24,9 +24,12 @@ function stepStatus(key: string, entryModule: string, timelineModules: Set<strin
   return 'Etapa futura';
 }
 
-function actionFor(employeeId: string, entryModule: string) {
-  if (entryModule === 'marco_zero') {
+function actionFor(employeeId: string, nextMilestone: string) {
+  if (nextMilestone === 'Marco Zero') {
     return { href: `/team/${employeeId}/marco-zero/new`, label: 'Iniciar Marco Zero' };
+  }
+  if (nextMilestone === 'Avaliação de 90 dias') {
+    return { href: `/team/${employeeId}/ninety-days/new`, label: 'Iniciar Avaliação de 90 dias' };
   }
   return null;
 }
@@ -41,7 +44,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
   if (!employee) notFound();
 
   const timelineModules = new Set(timeline.map((item) => item.module));
-  const action = actionFor(employee.id, employee.v2EntryModule);
+  const action = actionFor(employee.id, employee.nextMilestone);
 
   return (
     <main className="page">
@@ -133,6 +136,12 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                     <span className="badge badgeAccent">{item.status}</span>
                   </div>
                   <p className="muted">{item.description}</p>
+                  {item.module === 'ninety_days' && (
+                    <Link className="button buttonSecondary" href={`/records/${item.id}/ninety-days`} style={{ marginTop: 8 }}>Abrir avaliação</Link>
+                  )}
+                  {item.module === 'marco_zero' && (
+                    <Link className="button buttonSecondary" href={`/records/${item.id}/marco-zero`} style={{ marginTop: 8 }}>Abrir Marco Zero</Link>
+                  )}
                 </div>
               </article>
             ))}
