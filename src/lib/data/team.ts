@@ -1,5 +1,5 @@
 import { hasSupabaseEnv } from '@/lib/env';
-import { createClient } from '@/lib/supabase/server';
+import { requireManager } from '@/lib/auth';
 import { demoTeam, demoTimeline, type EmployeeSummary, type TimelineItem } from '@/lib/demo-data';
 
 function mapEmployee(row: {
@@ -21,7 +21,8 @@ function mapEmployee(row: {
 export async function getTeam(): Promise<EmployeeSummary[]> {
   if (!hasSupabaseEnv()) return demoTeam;
 
-  const supabase = await createClient();
+  const auth = await requireManager();
+  const supabase = auth!.supabase;
   const { data, error } = await supabase
     .from('employees')
     .select('id, display_name, current_role, current_squad')
@@ -37,7 +38,8 @@ export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
     return demoTeam.find((employee) => employee.id === id) ?? null;
   }
 
-  const supabase = await createClient();
+  const auth = await requireManager();
+  const supabase = auth!.supabase;
   const { data, error } = await supabase
     .from('employees')
     .select('id, display_name, current_role, current_squad')
@@ -51,7 +53,8 @@ export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
 export async function getEmployeeTimeline(id: string): Promise<TimelineItem[]> {
   if (!hasSupabaseEnv()) return demoTimeline[id] ?? [];
 
-  const supabase = await createClient();
+  const auth = await requireManager();
+  const supabase = auth!.supabase;
   const { data, error } = await supabase
     .from('module_records')
     .select('id, module_type, status, cycle_label, occurred_on, created_at')
