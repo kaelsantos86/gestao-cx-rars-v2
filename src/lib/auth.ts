@@ -10,5 +10,16 @@ export async function requireManager() {
 
   if (error || !data.user) redirect('/login');
 
-  return { supabase, user: data.user };
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, display_name, role')
+    .eq('id', data.user.id)
+    .maybeSingle();
+
+  if (profileError || !profile || profile.role !== 'manager') {
+    await supabase.auth.signOut();
+    redirect('/login?error=unauthorized');
+  }
+
+  return { supabase, user: data.user, profile };
 }
