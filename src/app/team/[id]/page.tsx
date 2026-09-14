@@ -34,6 +34,9 @@ function actionFor(employeeId: string, nextMilestone: string) {
   if (nextMilestone === 'Competências') {
     return { href: `/team/${employeeId}/competencies/new`, label: 'Iniciar Avaliação de Competências' };
   }
+  if (nextMilestone === 'PDI Evolutivo') {
+    return { href: `/team/${employeeId}/pdi/new`, label: 'Iniciar PDI Evolutivo' };
+  }
   return null;
 }
 
@@ -78,7 +81,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
           <p className="muted">{employee.journeyNote}</p>
         </article>
         <article className="card">
-          <p className="eyebrow">Ponto de entrada na V2</p>
+          <p className="eyebrow">Próximo movimento na V2</p>
           <h2 style={{ marginBottom: 8 }}>{employee.nextMilestone}</h2>
           <p className="muted">Módulos anteriores não são recriados artificialmente. Registros reais da V1 poderão ser migrados depois como histórico.</p>
         </article>
@@ -118,7 +121,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
             <Link className="button" href={action.href}>{action.label}</Link>
           ) : (
             <span className="button buttonSecondary" aria-disabled="true" style={{ opacity: .65, cursor: 'default' }}>
-              Próximo: {employee.nextMilestone}
+              {employee.nextMilestone === 'PDI ativo' ? 'PDI ativo — acompanhe pela Timeline' : `Próximo: ${employee.nextMilestone}`}
             </span>
           )}
         </div>
@@ -147,6 +150,9 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                   )}
                   {item.module === 'competencies' && (
                     <Link className="button buttonSecondary" href={`/records/${item.id}/competencies`} style={{ marginTop: 8 }}>Abrir Competências</Link>
+                  )}
+                  {item.module === 'pdi' && (
+                    <Link className="button buttonSecondary" href={`/records/${item.id}/pdi`} style={{ marginTop: 8 }}>Abrir PDI</Link>
                   )}
                 </div>
               </article>
