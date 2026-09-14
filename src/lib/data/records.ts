@@ -1,7 +1,7 @@
 import { hasSupabaseEnv } from '@/lib/env';
 import { requireManager } from '@/lib/auth';
 
-type SupportedManagerModule = 'marco_zero' | 'ninety_days' | 'competencies';
+type SupportedManagerModule = 'marco_zero' | 'ninety_days' | 'competencies' | 'pdi';
 
 async function getManagerRecord(id: string, moduleType: SupportedManagerModule) {
   if (!hasSupabaseEnv()) return null;
@@ -11,7 +11,7 @@ async function getManagerRecord(id: string, moduleType: SupportedManagerModule) 
 
   const { data: record, error: recordError } = await supabase
     .from('module_records')
-    .select('id, employee_id, manager_id, status, cycle_label, occurred_on, payload, private_notes, participant_locked_at, completed_at, created_at')
+    .select('id, employee_id, manager_id, status, cycle_label, occurred_on, payload, private_notes, participant_locked_at, completed_at, archived_at, created_at')
     .eq('id', id)
     .eq('module_type', moduleType)
     .maybeSingle();
@@ -63,6 +63,10 @@ export async function getNinetyDayRecord(id: string) {
 
 export async function getCompetencyRecord(id: string) {
   return getManagerRecord(id, 'competencies');
+}
+
+export async function getPdiRecord(id: string) {
+  return getManagerRecord(id, 'pdi');
 }
 
 export async function getParticipantMarcoZero(token: string) {
@@ -120,6 +124,27 @@ export async function getParticipantCompetencies(token: string) {
     employee_name: string;
     cycle_label: string | null;
     shared_context: Record<string, string | null>;
+    latest_response: Record<string, unknown>;
+    latest_submitted: boolean;
+  };
+}
+
+export async function getParticipantPdi(token: string) {
+  if (!hasSupabaseEnv()) return null;
+
+  const auth = await import('@/lib/supabase/server');
+  const supabase = await auth.createClient();
+  const { data, error } = await supabase.rpc('get_pdi_participant_record', { raw_token: token });
+
+  if (error) return null;
+  return data as {
+    record_id: string;
+    module_type: string;
+    status: string;
+    locked: boolean;
+    employee_name: string;
+    cycle_label: string | null;
+    shared_context: Record<string, unknown>;
     latest_response: Record<string, unknown>;
     latest_submitted: boolean;
   };
