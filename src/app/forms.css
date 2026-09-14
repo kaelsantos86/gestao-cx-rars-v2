@@ -71,14 +71,16 @@ button:disabled {
   line-height: 1.45;
 }
 
-.competencyAccordion {
+.competencyAccordion,
+.workspaceAccordion {
   border: 1px solid var(--line);
   border-radius: 16px;
   background: white;
   overflow: hidden;
 }
 
-.competencySummary {
+.competencySummary,
+.workspaceSummary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
@@ -88,21 +90,26 @@ button:disabled {
   list-style: none;
 }
 
-.competencySummary::-webkit-details-marker {
+.competencySummary::-webkit-details-marker,
+.workspaceSummary::-webkit-details-marker {
   display: none;
 }
 
 .competencySummary strong,
-.competencySummary small {
+.competencySummary small,
+.workspaceSummary strong,
+.workspaceSummary small {
   display: block;
 }
 
-.competencySummary strong {
+.competencySummary strong,
+.workspaceSummary strong {
   font-size: 18px;
   line-height: 1.25;
 }
 
-.competencySummary small {
+.competencySummary small,
+.workspaceSummary small {
   margin-top: 5px;
   color: var(--muted);
   font-size: 13px;
@@ -115,13 +122,58 @@ button:disabled {
   transition: transform .18s ease;
 }
 
-.competencyAccordion[open] .competencyChevron {
+.competencyAccordion[open] > .competencySummary .competencyChevron,
+.workspaceAccordion[open] > .workspaceSummary .competencyChevron {
   transform: rotate(180deg);
 }
 
-.competencyAccordionBody {
+.competencyAccordionBody,
+.workspaceBody {
   border-top: 1px solid var(--line);
   padding: 16px;
+}
+
+.workspaceStack {
+  display: grid;
+  gap: 12px;
+}
+
+.workspaceMiniCard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--surface, #fff);
+}
+
+.workspaceMiniCard p {
+  margin-bottom: 0;
+}
+
+.comparisonList {
+  display: grid;
+  gap: 8px;
+}
+
+.comparisonRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(130px, 1fr) minmax(130px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.comparisonRow strong,
+.comparisonRow small,
+.comparisonRow span {
+  display: block;
+}
+
+.comparisonRow small {
+  margin-top: 3px;
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 @media (max-width: 640px) {
@@ -134,17 +186,33 @@ button:disabled {
     font-size: 16px;
   }
 
-  .competencySummary {
+  .competencySummary,
+  .workspaceSummary {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .competencySummary .badge {
+  .competencySummary .badge,
+  .workspaceSummary .badge {
     grid-column: 1;
     justify-self: start;
   }
 
-  .competencySummary .competencyChevron {
+  .competencySummary .competencyChevron,
+  .workspaceSummary .competencyChevron {
     grid-column: 2;
     grid-row: 1 / span 2;
+  }
+
+  .comparisonRow {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .comparisonRow > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .comparisonRow .badge {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }
