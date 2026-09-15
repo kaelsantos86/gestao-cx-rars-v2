@@ -35,6 +35,7 @@ export const competencyContextFields = [
   ['priorAgreements', 'Acordos e expectativas já combinados'],
 ] as const;
 
+// Mantido para leitura de registros V1/V2 anteriores. Na experiência atual o fechamento é automático e compacto.
 export const competencyConsolidationFields = [
   ['recognizedStrengths', 'Forças reconhecidas'],
   ['developmentPriority', 'Prioridade de desenvolvimento'],
@@ -44,17 +45,55 @@ export const competencyConsolidationFields = [
 ] as const;
 
 export function bandForScore(score: number): CompetencyBand | null {
-  const band = competencyBands.find((item) => score >= item.min && score <= item.max);
-  return band?.value ?? null;
+  if (!Number.isFinite(score) || score < 0 || score > 1.2) return null;
+  // A nota é trabalhada em centésimos. A faixa é consequência da nota, nunca uma segunda escolha.
+  if (score < 0.8) return 'not_meets';
+  if (score < 1) return 'partial';
+  if (score <= 1.1) return 'meets';
+  return 'exceeds';
 }
 
 export function isScoreValidForBand(score: number, band: string) {
-  const definition = competencyBands.find((item) => item.value === band);
-  return Boolean(definition && Number.isFinite(score) && score >= definition.min && score <= definition.max);
+  return bandForScore(score) === band;
 }
 
 export function bandLabel(value: string | undefined | null) {
   return competencyBands.find((item) => item.value === value)?.label ?? '—';
+}
+
+export function bandHelp(value: string | undefined | null) {
+  return competencyBands.find((item) => item.value === value)?.help ?? '';
+}
+
+export function scoreText(value: number) {
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function sentence(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+export function buildAutomaticOfficialComment(
+  competencyLabel: string,
+  score: number,
+  evidence: string,
+  nextStep?: string,
+) {
+  const band = bandForScore(score);
+  if (!band || !evidence.trim()) return '';
+
+  const opening: Record<CompetencyBand, string> = {
+    not_meets: `Em ${competencyLabel}, os comportamentos observados ainda aparecem abaixo do esperado para o ciclo.`,
+    partial: `Em ${competencyLabel}, há demonstrações da competência, ainda com oportunidade de maior consistência.`,
+    meets: `Em ${competencyLabel}, demonstra os comportamentos esperados com consistência no ciclo.`,
+    exceeds: `Em ${competencyLabel}, demonstra contribuição acima do esperado, sustentada pelos comportamentos e resultados observados.`,
+  };
+
+  const parts = [opening[band], sentence(evidence)];
+  if (nextStep?.trim()) parts.push(`Próximo foco: ${sentence(nextStep)}`);
+  return parts.join(' ');
 }
 
 export function defaultCompetencyCycleLabel(date = new Date()) {
