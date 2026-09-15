@@ -105,6 +105,11 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                   <strong>{step.label}</strong>
                 </div>
                 <div style={{ marginTop: 10 }}><span className="badge">{status}</span></div>
+                {step.key === 'feedback' && (
+                  <Link className="button buttonSecondary" href={`/team/${employee.id}/feedback/new`} style={{ marginTop: 12 }}>
+                    Registrar Feedback
+                  </Link>
+                )}
               </div>
             );
           })}
@@ -153,6 +158,9 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                   )}
                   {item.module === 'pdi' && (
                     <Link className="button buttonSecondary" href={`/records/${item.id}/pdi`} style={{ marginTop: 8 }}>Abrir PDI</Link>
+                  )}
+                  {item.module === 'feedback' && (
+                    <Link className="button buttonSecondary" href={`/records/${item.id}/feedback`} style={{ marginTop: 8 }}>Abrir Feedback</Link>
                   )}
                 </div>
               </article>
