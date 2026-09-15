@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { requireManager } from '@/lib/auth';
 import { getEmployee } from '@/lib/data/team';
 import { getEligibleTalentSources, getTalentSourcesByIds } from '@/lib/data/talent';
-import { extractTalentSignals, talentPurposes, talentSourceLabel } from '@/lib/talent';
+import { buildTalentSourceSnapshot, extractTalentSignals, talentPurposes, talentSourceLabel } from '@/lib/talent';
 
 async function createTalentRecord(formData: FormData) {
   'use server';
@@ -23,6 +23,7 @@ async function createTalentRecord(formData: FormData) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const snapshotAt = new Date().toISOString();
   const { data: record, error } = await auth.supabase
     .from('module_records')
     .insert({
@@ -35,7 +36,8 @@ async function createTalentRecord(formData: FormData) {
       payload: {
         purpose,
         sourceIds: sources.map((source) => source.id),
-        sourceSnapshotAt: new Date().toISOString(),
+        sourceSnapshot: buildTalentSourceSnapshot(sources),
+        sourceSnapshotAt: snapshotAt,
         ready: false,
       },
     })
