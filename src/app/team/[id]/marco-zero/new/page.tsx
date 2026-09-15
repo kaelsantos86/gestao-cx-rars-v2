@@ -11,6 +11,23 @@ async function createMarcoZero(formData: FormData) {
   if (!hasSupabaseEnv()) redirect(`/team/${employeeId}/marco-zero/new?setup=1`);
 
   const auth = await requireManager();
+  if (!auth) redirect('/login');
+
+  const { data: existing, error: existingError } = await auth.supabase
+    .from('module_records')
+    .select('id')
+    .eq('employee_id', employeeId)
+    .eq('manager_id', auth.user.id)
+    .eq('module_type', 'marco_zero')
+    .not('status', 'in', '(completed,archived,cancelled)')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+  if (existing) redirect(`/records/${existing.id}/marco-zero`);
+
   const payload = Object.fromEntries(
     marcoZeroManagerFields.map(([key]) => [key, String(formData.get(key) ?? '')]),
   );
@@ -25,11 +42,11 @@ async function createMarcoZero(formData: FormData) {
     review30Days: String(formData.get('review30Days') ?? ''),
   });
 
-  const { data, error } = await auth!.supabase
+  const { data, error } = await auth.supabase
     .from('module_records')
     .insert({
       employee_id: employeeId,
-      manager_id: auth!.user.id,
+      manager_id: auth.user.id,
       module_type: 'marco_zero',
       status: 'awaiting_participant',
       cycle_label: 'Marco Zero',
