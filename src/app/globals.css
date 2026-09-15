@@ -129,10 +129,298 @@ button, input { font: inherit; }
 .notice { border-radius: 14px; padding: 12px 14px; background: #fff5de; color: #76500f; font-size: 13px; line-height: 1.5; }
 .empty { text-align: center; padding: 36px; color: var(--muted); }
 
+/* Home / dashboard operacional */
+.dashboardPage { display: grid; gap: 22px; }
+.dashboardHero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, .75fr);
+  gap: 30px;
+  align-items: stretch;
+  padding: 34px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 90% 12%, rgba(255,255,255,.13), transparent 24%),
+    linear-gradient(135deg, #0d5234 0%, #146b45 58%, #1b7a51 100%);
+  color: white;
+  box-shadow: 0 20px 48px rgba(13, 82, 52, .16);
+}
+.dashboardHero::after {
+  content: '';
+  position: absolute;
+  right: -90px;
+  bottom: -130px;
+  width: 280px;
+  height: 280px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 50%;
+}
+.dashboardHeroContent { position: relative; z-index: 1; align-self: center; }
+.dashboardEyebrow {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.72);
+}
+.dashboardHero h1 {
+  margin: 0;
+  max-width: 690px;
+  font-size: clamp(36px, 6vw, 60px);
+  letter-spacing: -.055em;
+  line-height: .98;
+}
+.dashboardHeroContent > p:not(.dashboardEyebrow) {
+  max-width: 670px;
+  margin: 18px 0 0;
+  color: rgba(255,255,255,.8);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.dashboardHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 24px;
+}
+.dashboardPrimaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 13px;
+  background: white;
+  color: var(--accent-strong);
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(6, 49, 30, .12);
+}
+.dashboardLiveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255,255,255,.78);
+  font-size: 13px;
+  font-weight: 700;
+}
+.dashboardLiveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #aee7c7;
+  box-shadow: 0 0 0 5px rgba(174,231,199,.12);
+}
+.dashboardNowCard {
+  position: relative;
+  z-index: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 220px;
+  padding: 24px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 22px;
+  background: rgba(255,255,255,.11);
+  backdrop-filter: blur(14px);
+}
+.dashboardNowLabel {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.66);
+}
+.dashboardNowCard > strong {
+  margin-top: 8px;
+  font-size: 50px;
+  line-height: 1;
+  letter-spacing: -.06em;
+}
+.dashboardNowCard > span:not(.dashboardNowLabel) { margin-top: 6px; color: rgba(255,255,255,.76); }
+.dashboardNowDivider { height: 1px; margin: 18px 0 12px; background: rgba(255,255,255,.16); }
+.dashboardNowLine { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; color: rgba(255,255,255,.76); font-size: 13px; }
+.dashboardNowLine b { color: white; font-size: 15px; }
+
+.dashboardMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.dashboardMetricCard {
+  position: relative;
+  overflow: hidden;
+  min-height: 136px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+.dashboardMetricCard::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20px;
+  width: 3px;
+  height: 44px;
+  border-radius: 0 4px 4px 0;
+  background: var(--accent-soft);
+}
+.dashboardMetricAccent { background: linear-gradient(145deg, #ffffff 0%, #eff8f3 100%); }
+.dashboardMetricAccent::before { background: var(--accent); }
+.dashboardMetricLabel { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.dashboardMetricValue { margin-top: 12px; font-size: 36px; font-weight: 850; letter-spacing: -.05em; line-height: 1; }
+.dashboardMetricCard p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+
+.dashboardMainGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, .75fr);
+  gap: 18px;
+}
+.dashboardPanel {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+}
+.dashboardPanelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.dashboardPanelHeader h2 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
+.dashboardTextLink { color: var(--accent); font-size: 13px; font-weight: 800; white-space: nowrap; }
+.dashboardPanelTotal {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 850;
+}
+.dashboardPeopleList { display: grid; }
+.dashboardPersonRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.dashboardPersonRow:first-child { border-top: 0; padding-top: 4px; }
+.dashboardAvatar { width: 40px; height: 40px; border-radius: 13px; font-size: 12px; }
+.dashboardPersonMain { display: grid; gap: 3px; min-width: 0; }
+.dashboardPersonMain strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboardPersonMain span { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboardPersonStage {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.dashboardListFooter {
+  display: block;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dashboardStageList { display: grid; gap: 17px; }
+.dashboardStageRow { display: grid; gap: 8px; }
+.dashboardStageTopline { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.dashboardStageTopline span { color: var(--muted); }
+.dashboardStageTopline b { color: var(--text); }
+.dashboardStageTrack { height: 8px; overflow: hidden; border-radius: 999px; background: var(--surface-soft); }
+.dashboardStageTrack span { display: block; min-width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #54a679); }
+
+.dashboardMilestonesPanel { padding-bottom: 24px; }
+.dashboardPanelHint { color: var(--muted); font-size: 12px; font-weight: 700; }
+.dashboardMilestoneGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.dashboardMilestoneCard {
+  min-height: 148px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: linear-gradient(180deg, #fff 0%, #fbfdfc 100%);
+}
+.dashboardMilestoneTop { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.dashboardMilestoneTop > span { max-width: 150px; font-weight: 800; line-height: 1.25; }
+.dashboardMilestoneTop b {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+}
+.dashboardMilestonePeople { display: grid; gap: 8px; margin-top: 16px; }
+.dashboardMilestonePeople a { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; font-weight: 700; }
+.dashboardMilestonePeople a > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboardMiniAvatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: var(--accent-strong);
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.dashboardFlowSection {
+  display: grid;
+  grid-template-columns: minmax(250px, .7fr) minmax(0, 1.3fr);
+  gap: 24px;
+  align-items: center;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface-soft);
+}
+.dashboardFlowSection h2 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
+.dashboardFlowSection .muted { margin: 9px 0 0; line-height: 1.5; }
+.dashboardFlow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.dashboardFlowStep {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 10px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.76);
+  border: 1px solid rgba(220,229,223,.9);
+}
+.dashboardFlowStep span { color: var(--accent); font-size: 10px; font-weight: 850; letter-spacing: .08em; }
+.dashboardFlowStep strong { font-size: 12px; overflow-wrap: anywhere; }
+
 @media (max-width: 900px) {
   .grid4, .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .employeeRow { grid-template-columns: 1fr 1fr; }
   .hero { align-items: flex-start; flex-direction: column; }
+  .dashboardHero { grid-template-columns: 1fr; }
+  .dashboardNowCard { min-height: auto; }
+  .dashboardMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboardMainGrid { grid-template-columns: 1fr; }
+  .dashboardMilestoneGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboardFlowSection { grid-template-columns: 1fr; }
+  .dashboardFlow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 620px) {
   .topbarInner { align-items: flex-start; flex-direction: column; }
@@ -150,4 +438,23 @@ button, input { font: inherit; }
   .tabs::-webkit-scrollbar { display: none; }
   .timelineItem { grid-template-columns: 1fr; gap: 5px; }
   .timelineDate { padding-top: 0; }
+
+  .dashboardPage { gap: 16px; padding-top: 20px; }
+  .dashboardHero { padding: 24px 20px; border-radius: 22px; gap: 20px; }
+  .dashboardHero h1 { font-size: 40px; }
+  .dashboardHeroContent > p:not(.dashboardEyebrow) { font-size: 15px; }
+  .dashboardHeroActions { align-items: flex-start; flex-direction: column; }
+  .dashboardNowCard { padding: 18px; border-radius: 17px; }
+  .dashboardNowCard > strong { font-size: 42px; }
+  .dashboardMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .dashboardMetricCard { min-height: 122px; padding: 15px; border-radius: 17px; }
+  .dashboardMetricValue { font-size: 31px; }
+  .dashboardPanel { padding: 18px; border-radius: 19px; }
+  .dashboardPanelHeader { align-items: flex-start; }
+  .dashboardPersonRow { grid-template-columns: auto minmax(0, 1fr); }
+  .dashboardPersonStage { grid-column: 2; justify-self: start; margin-top: -4px; }
+  .dashboardMilestoneGrid { grid-template-columns: 1fr; }
+  .dashboardMilestoneCard { min-height: 0; }
+  .dashboardFlowSection { padding: 19px; border-radius: 19px; }
+  .dashboardFlow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
