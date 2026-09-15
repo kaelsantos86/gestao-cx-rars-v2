@@ -23,6 +23,7 @@ export type TimelineItem = {
   status: string;
   date: string;
   description: string;
+  officialSummary?: string;
 };
 
 export const demoTeam: EmployeeSummary[] = [
