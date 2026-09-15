@@ -2,8 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { PrintButton } from '@/components/print-button';
 import { getTalentRecord } from '@/lib/data/records';
-import { getTalentSourcesByIds } from '@/lib/data/talent';
-import { talentPurposeLabel, talentSourceLabel } from '@/lib/talent';
+import { type TalentSourceSnapshot, talentPurposeLabel } from '@/lib/talent';
 
 export default async function TalentPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,10 +12,9 @@ export default async function TalentPrintPage({ params }: { params: Promise<{ id
 
   const payload = (record.payload ?? {}) as Record<string, any>;
   const executive = (payload.executive ?? {}) as Record<string, string>;
-  const sourceIds = Array.isArray(payload.sourceIds)
-    ? payload.sourceIds.map(String)
-    : record.dependencies.map((item) => item.source_record_id);
-  const sources = await getTalentSourcesByIds(record.employee.id, sourceIds);
+  const sources = Array.isArray(payload.sourceSnapshot)
+    ? payload.sourceSnapshot as TalentSourceSnapshot[]
+    : [];
   const deliveries = [executive.delivery1, executive.delivery2, executive.delivery3].filter(Boolean);
   const indicators = [executive.indicator1, executive.indicator2, executive.indicator3].filter(Boolean);
 
@@ -87,7 +85,7 @@ export default async function TalentPrintPage({ params }: { params: Promise<{ id
         <p className="eyebrow">Fontes formais utilizadas</p>
         <div className="talentPrintSources">
           {sources.map((source) => (
-            <span className="badge" key={source.id}>{talentSourceLabel(source.module_type)} · {source.cycle_label ?? 'Registro formal'}</span>
+            <span className="badge" key={source.id}>{source.moduleLabel} · {source.cycleLabel}</span>
           ))}
         </div>
         <p className="muted" style={{ fontSize: 12, marginTop: 14 }}>
