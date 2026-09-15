@@ -111,18 +111,20 @@ export function buildOfficialSummary(
     const resultParts = Object.entries(competencyNames)
       .map(([key, label]) => {
         const assessment = (assessments[key] ?? {}) as JsonObject;
-        if (!assessment.score && !assessment.band) return '';
+        if (assessment.score === undefined && !assessment.band) return '';
         const band = bandNames[text(assessment.band)] ?? text(assessment.band);
         return `${label}: ${score(assessment.score)}${band ? ` (${band})` : ''}`;
       })
       .filter(Boolean);
     if (resultParts.length) lines.push(`Resultado das competências: ${resultParts.join('; ')}`);
 
-    add(lines, 'Forças reconhecidas', payload.recognizedStrengths);
+    add(lines, 'Síntese do ciclo', payload.competencySummary);
+    add(lines, 'Forças reconhecidas', payload.strengthSummary || payload.recognizedStrengths);
     add(lines, 'Prioridade de desenvolvimento', payload.developmentPriority);
-    add(lines, 'Acordos com o colaborador', payload.employeeAgreements);
+    add(lines, 'Acordo principal do próximo ciclo', payload.employeeAgreements);
     add(lines, 'Apoio do gestor', payload.managerSupport);
     add(lines, 'Conexão com o PDI', payload.pdiConnection);
+    add(lines, 'Data de retorno', payload.returnDate);
 
     Object.entries(competencyNames).forEach(([key, label]) => {
       const assessment = (assessments[key] ?? {}) as JsonObject;
