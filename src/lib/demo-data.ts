@@ -1,3 +1,5 @@
+export type CoreJourneyModule = 'marco_zero' | 'ninety_days' | 'competencies' | 'pdi';
+
 export type EmployeeSummary = {
   id: string;
   displayName: string;
@@ -9,6 +11,9 @@ export type EmployeeSummary = {
   journeyNote: string;
   nextMilestone: string;
   nextMilestoneDate?: string;
+  openRecordId?: string;
+  openRecordModule?: CoreJourneyModule;
+  openRecordStatus?: string;
 };
 
 export type TimelineItem = {
