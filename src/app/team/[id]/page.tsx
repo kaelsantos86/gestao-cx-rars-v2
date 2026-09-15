@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEmployee, getEmployeeTimeline } from '@/lib/data/team';
+import { getEligibleTalentSources } from '@/lib/data/talent';
 
 const journey = [
   { key: 'marco_zero', label: 'Marco Zero' },
@@ -42,15 +43,17 @@ function actionFor(employeeId: string, nextMilestone: string) {
 
 export default async function EmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [employee, timeline] = await Promise.all([
+  const [employee, timeline, talentSources] = await Promise.all([
     getEmployee(id),
     getEmployeeTimeline(id),
+    getEligibleTalentSources(id),
   ]);
 
   if (!employee) notFound();
 
   const timelineModules = new Set(timeline.map((item) => item.module));
   const action = actionFor(employee.id, employee.nextMilestone);
+  const hasTalentSources = talentSources.length > 0;
 
   return (
     <main className="page">
@@ -97,7 +100,10 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
         <h2 style={{ marginTop: 0 }}>Fluxo aplicável a este colaborador</h2>
         <div className="grid grid3">
           {journey.map((step, index) => {
-            const status = stepStatus(step.key, employee.v2EntryModule, timelineModules);
+            const status = step.key === 'talent' && !hasTalentSources
+              ? 'Sem fontes válidas'
+              : stepStatus(step.key, employee.v2EntryModule, timelineModules);
+
             return (
               <div key={step.key} style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -111,9 +117,20 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                   </Link>
                 )}
                 {step.key === 'talent' && (
-                  <Link className="button buttonSecondary" href={`/team/${employee.id}/talent/new`} style={{ marginTop: 12 }}>
-                    Preparar Talento
-                  </Link>
+                  hasTalentSources ? (
+                    <Link className="button buttonSecondary" href={`/team/${employee.id}/talent/new`} style={{ marginTop: 12 }}>
+                      Preparar Talento
+                    </Link>
+                  ) : (
+                    <span
+                      className="button buttonSecondary"
+                      aria-disabled="true"
+                      title="Disponível quando existir pelo menos uma fonte formal elegível"
+                      style={{ marginTop: 12, opacity: .45, cursor: 'not-allowed', pointerEvents: 'none' }}
+                    >
+                      Preparar Talento
+                    </span>
+                  )
                 )}
               </div>
             );
