@@ -4,12 +4,12 @@ import { requireManager } from '@/lib/auth';
 import { getTalentRecord } from '@/lib/data/records';
 import { getEligibleTalentSources, getTalentSourcesByIds } from '@/lib/data/talent';
 import {
-  extractTalentSignals,
+  buildTalentSourceSnapshot,
   talentDeliveryFields,
   talentExecutiveFields,
   talentIndicatorFields,
   talentPurposeLabel,
-  talentSourceLabel,
+  type TalentSourceSnapshot,
 } from '@/lib/talent';
 
 async function refreshSources(formData: FormData) {
@@ -52,6 +52,7 @@ async function refreshSources(formData: FormData) {
   const payload = {
     ...((record.payload ?? {}) as Record<string, unknown>),
     sourceIds,
+    sourceSnapshot: buildTalentSourceSnapshot(sources),
     sourceSnapshotAt: new Date().toISOString(),
   };
 
@@ -131,6 +132,9 @@ async function markReady(formData: FormData) {
   if (!payload.executiveSavedAt || !payload.executive?.headline || !payload.executive?.delivery1) {
     redirect(`/records/${recordId}/talent?executive=required`);
   }
+  if (!Array.isArray(payload.sourceSnapshot) || payload.sourceSnapshot.length === 0) {
+    redirect(`/records/${recordId}/talent?ready=sources`);
+  }
 
   const now = new Date().toISOString();
   const nextPayload = {
@@ -177,9 +181,15 @@ export default async function TalentManagerPage({
   const sourceIds = Array.isArray(payload.sourceIds)
     ? payload.sourceIds.map(String)
     : record.dependencies.map((item) => item.source_record_id);
-  const sources = await getTalentSourcesByIds(record.employee.id, sourceIds);
-  const executive = (payload.executive ?? {}) as Record<string, string>;
+  const liveSources = await getTalentSourcesByIds(record.employee.id, sourceIds);
+  const storedSnapshot = Array.isArray(payload.sourceSnapshot)
+    ? payload.sourceSnapshot as TalentSourceSnapshot[]
+    : [];
   const completed = record.status === 'completed';
+  const sourceSnapshot = completed && storedSnapshot.length > 0
+    ? storedSnapshot
+    : buildTalentSourceSnapshot(liveSources);
+  const executive = (payload.executive ?? {}) as Record<string, string>;
 
   return (
     <main className="page">
@@ -198,25 +208,26 @@ export default async function TalentManagerPage({
       {query.executive === 'saved' && <div className="notice" style={{ marginBottom: 18 }}>Síntese executiva salva.</div>}
       {query.executive === 'required' && <div className="notice" style={{ marginBottom: 18 }}>Preencha a mensagem principal, síntese, fortalezas, conclusão gerencial e pelo menos uma entrega.</div>}
       {query.ready === 'confirm' && <div className="notice" style={{ marginBottom: 18 }}>Confirme a revisão das fontes e a autoria gerencial antes de finalizar.</div>}
+      {query.ready === 'sources' && <div className="notice" style={{ marginBottom: 18 }}>Atualize as fontes antes de finalizar esta visão executiva.</div>}
       {query.ready === '1' && <div className="notice" style={{ marginBottom: 18 }}>Visão executiva concluída e preservada como fotografia daquele momento.</div>}
 
       <div className="workspaceStack">
         <details className="workspaceAccordion">
           <summary className="workspaceSummary">
             <span><strong>1. Fontes da trajetória</strong><small>Registros formais autorizados e realmente existentes.</small></span>
-            <span className="badge">{sources.length} fontes</span>
+            <span className="badge">{sourceSnapshot.length} fontes</span>
             <span className="competencyChevron" aria-hidden="true">⌄</span>
           </summary>
           <div className="workspaceBody">
-            {sources.length === 0 ? (
+            {sourceSnapshot.length === 0 ? (
               <div className="empty">Nenhuma fonte válida encontrada.</div>
             ) : (
               <div className="workspaceStack">
-                {sources.map((source) => (
+                {sourceSnapshot.map((source) => (
                   <article className="workspaceMiniCard" key={source.id}>
-                    <strong>{talentSourceLabel(source.module_type)} · {source.cycle_label ?? 'Registro formal'}</strong>
-                    <small className="muted" style={{ display: 'block', marginTop: 4 }}>{source.completed_at ? `Concluído em ${formatDate(source.completed_at)}` : `Status: ${source.status}`}</small>
-                    {extractTalentSignals(source).slice(0, 3).map((signal, index) => (
+                    <strong>{source.moduleLabel} · {source.cycleLabel}</strong>
+                    <small className="muted" style={{ display: 'block', marginTop: 4 }}>{source.status === 'active' || source.status === 'in_review' ? `Status: ${source.status}` : `Referência: ${formatDate(source.referenceDate)}`}</small>
+                    {source.signals.slice(0, 3).map((signal, index) => (
                       <p className="muted" key={index} style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{signal}</p>
                     ))}
                   </article>
