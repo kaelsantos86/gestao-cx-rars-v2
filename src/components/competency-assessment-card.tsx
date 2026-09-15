@@ -1,7 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { competencyBands } from '@/lib/competencies';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  bandForScore,
+  bandHelp,
+  bandLabel,
+  buildAutomaticOfficialComment,
+  scoreText,
+} from '@/lib/competencies';
 
 type Competency = {
   key: string;
@@ -17,49 +23,36 @@ function parseScore(value: string) {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-function pt(value: number) {
-  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 export function CompetencyAssessmentCard({ competency }: { competency: Competency }) {
-  const [band, setBand] = useState('');
   const [score, setScore] = useState('');
   const [evidence, setEvidence] = useState('');
-  const [officialComment, setOfficialComment] = useState('');
+  const [nextStep, setNextStep] = useState('');
   const scoreRef = useRef<HTMLInputElement>(null);
 
-  const bandDefinition = competencyBands.find((item) => item.value === band);
   const numericScore = parseScore(score);
-  const scoreValid = Boolean(
-    bandDefinition
-      && numericScore !== null
-      && !Number.isNaN(numericScore)
-      && numericScore >= bandDefinition.min
-      && numericScore <= bandDefinition.max,
+  const band = numericScore !== null && !Number.isNaN(numericScore) ? bandForScore(numericScore) : null;
+  const scoreValid = numericScore !== null && !Number.isNaN(numericScore) && Boolean(band);
+  const officialComment = useMemo(
+    () => scoreValid && numericScore !== null
+      ? buildAutomaticOfficialComment(competency.label, numericScore, evidence, nextStep)
+      : '',
+    [competency.label, evidence, nextStep, numericScore, scoreValid],
   );
-  const complete = Boolean(bandDefinition && scoreValid && evidence.trim() && officialComment.trim());
+  const complete = Boolean(scoreValid && evidence.trim());
 
   useEffect(() => {
     const input = scoreRef.current;
     if (!input) return;
 
-    if (!score.trim()) {
-      input.setCustomValidity('');
-    } else if (!bandDefinition) {
-      input.setCustomValidity('Selecione primeiro a faixa da competência.');
-    } else if (numericScore === null || Number.isNaN(numericScore)) {
-      input.setCustomValidity('Digite uma nota válida usando vírgula ou ponto.');
-    } else if (numericScore < bandDefinition.min || numericScore > bandDefinition.max) {
-      input.setCustomValidity(`A nota desta faixa deve ficar entre ${pt(bandDefinition.min)} e ${pt(bandDefinition.max)}.`);
-    } else {
-      input.setCustomValidity('');
-    }
+    if (!score.trim()) input.setCustomValidity('');
+    else if (!scoreValid) input.setCustomValidity('Informe uma nota entre 0,00 e 1,20, usando até duas casas decimais.');
+    else input.setCustomValidity('');
 
     input.form?.dispatchEvent(new Event('competency-validity'));
-  }, [bandDefinition, numericScore, score]);
+  }, [score, scoreValid]);
 
-  const status = complete
-    ? `${bandDefinition?.label} · ${score.replace('.', ',')}`
+  const status = complete && band && numericScore !== null
+    ? `${bandLabel(band)} · ${scoreText(numericScore)}`
     : 'Pendente';
 
   return (
@@ -74,28 +67,12 @@ export function CompetencyAssessmentCard({ competency }: { competency: Competenc
       </summary>
 
       <div className="competencyAccordionBody">
+        <input type="hidden" name={`assessment_${competency.key}_band`} value={band ?? ''} />
+        <input type="hidden" name={`assessment_${competency.key}_officialComment`} value={officialComment} />
+
         <div className="grid grid2">
           <div className="field">
-            <label htmlFor={`assessment_${competency.key}_band`}>Faixa</label>
-            <select
-              id={`assessment_${competency.key}_band`}
-              name={`assessment_${competency.key}_band`}
-              value={band}
-              onChange={(event) => setBand(event.target.value)}
-              required
-            >
-              <option value="" disabled>Selecione</option>
-              {competencyBands.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label} · {pt(item.min)}–{pt(item.max)}
-                </option>
-              ))}
-            </select>
-            {bandDefinition && <small className="fieldHelp">{bandDefinition.help}</small>}
-          </div>
-
-          <div className="field">
-            <label htmlFor={`assessment_${competency.key}_score`}>Nota dentro da faixa</label>
+            <label htmlFor={`assessment_${competency.key}_score`}>Nota</label>
             <input
               ref={scoreRef}
               id={`assessment_${competency.key}_score`}
@@ -105,18 +82,22 @@ export function CompetencyAssessmentCard({ competency }: { competency: Competenc
               autoComplete="off"
               value={score}
               onChange={(event) => setScore(event.target.value)}
-              placeholder={bandDefinition ? `De ${pt(bandDefinition.min)} a ${pt(bandDefinition.max)}` : 'Selecione a faixa primeiro'}
+              placeholder="Ex.: 1,10"
               required
             />
-            <small className="fieldHelp">
-              {bandDefinition
-                ? `Intervalo permitido: ${pt(bandDefinition.min)} a ${pt(bandDefinition.max)}. Aceita vírgula ou ponto.`
-                : 'A faixa escolhida define automaticamente o intervalo permitido.'}
-            </small>
+            <small className="fieldHelp">Informe apenas a nota. A faixa é calculada automaticamente.</small>
           </div>
 
           <div className="field">
-            <label htmlFor={`assessment_${competency.key}_evidence`}>Evidências observáveis</label>
+            <label>Faixa automática</label>
+            <div className="notice" style={{ margin: 0, minHeight: 46 }}>
+              <strong>{band ? bandLabel(band) : 'Aguardando nota'}</strong>
+              {band && <div className="muted" style={{ marginTop: 4 }}>{bandHelp(band)}</div>}
+            </div>
+          </div>
+
+          <div className="field" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor={`assessment_${competency.key}_evidence`}>Comentário / evidências da competência</label>
             <textarea
               id={`assessment_${competency.key}_evidence`}
               name={`assessment_${competency.key}_evidence`}
@@ -124,33 +105,29 @@ export function CompetencyAssessmentCard({ competency }: { competency: Competenc
               value={evidence}
               onChange={(event) => setEvidence(event.target.value)}
               required
-              placeholder="Situação + comportamento + efeito. Inclua mais de uma situação quando estiver avaliando consistência."
+              placeholder="Registre fatos relevantes do semestre: situação, comportamento e efeito. Não precisa escrever novamente para a ferramenta oficial."
             />
           </div>
 
-          <div className="field">
-            <label htmlFor={`assessment_${competency.key}_officialComment`}>Comentário para a ferramenta oficial</label>
+          <div className="field" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor={`assessment_${competency.key}_nextStep`}>Próximo foco <span className="muted">(opcional)</span></label>
             <textarea
-              id={`assessment_${competency.key}_officialComment`}
-              name={`assessment_${competency.key}_officialComment`}
-              rows={4}
-              value={officialComment}
-              onChange={(event) => setOfficialComment(event.target.value)}
-              required
-              placeholder="Escreva uma devolutiva equilibrada, conectada à competência e pronta para copiar ao +Evolução."
+              id={`assessment_${competency.key}_nextStep`}
+              name={`assessment_${competency.key}_nextStep`}
+              rows={2}
+              value={nextStep}
+              onChange={(event) => setNextStep(event.target.value)}
+              placeholder="Inclua somente quando houver um comportamento específico a reforçar ou desenvolver."
             />
           </div>
         </div>
 
-        <div className="field" style={{ marginTop: 12 }}>
-          <label htmlFor={`assessment_${competency.key}_nextStep`}>Próximo passo ou acordo <span className="muted">(opcional)</span></label>
-          <textarea
-            id={`assessment_${competency.key}_nextStep`}
-            name={`assessment_${competency.key}_nextStep`}
-            rows={3}
-            placeholder="Comportamento a reforçar, desenvolver ou acompanhar de forma proporcional ao ciclo."
-          />
-        </div>
+        {officialComment && (
+          <div className="notice" style={{ marginTop: 14 }}>
+            <strong>Comentário para o +Evolução · gerado automaticamente</strong>
+            <p className="muted" style={{ marginBottom: 0 }}>{officialComment}</p>
+          </div>
+        )}
       </div>
     </details>
   );
@@ -180,7 +157,7 @@ export function CompetencySubmitButton() {
 
   return (
     <button ref={buttonRef} className="button" type="submit" disabled={!valid}>
-      {valid ? 'Criar Avaliação de Competências' : 'Complete os campos obrigatórios'}
+      {valid ? 'Criar Avaliação de Competências' : 'Complete as notas e comentários obrigatórios'}
     </button>
   );
 }
