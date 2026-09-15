@@ -1,7 +1,7 @@
 import { hasSupabaseEnv } from '@/lib/env';
 import { requireManager } from '@/lib/auth';
 
-type SupportedManagerModule = 'marco_zero' | 'ninety_days' | 'competencies' | 'pdi' | 'feedback';
+type SupportedManagerModule = 'marco_zero' | 'ninety_days' | 'competencies' | 'pdi' | 'feedback' | 'talent';
 
 async function getManagerRecord(id: string, moduleType: SupportedManagerModule) {
   if (!hasSupabaseEnv()) return null;
@@ -26,7 +26,7 @@ async function getManagerRecord(id: string, moduleType: SupportedManagerModule) 
   ] = await Promise.all([
     supabase
       .from('employees')
-      .select('id, display_name, role_title, current_squad, professional_moment, v2_entry_module')
+      .select('id, display_name, role_title, current_squad, photo_path, professional_moment, v2_entry_module')
       .eq('id', record.employee_id)
       .maybeSingle(),
     supabase
@@ -71,6 +71,10 @@ export async function getPdiRecord(id: string) {
 
 export async function getFeedbackRecord(id: string) {
   return getManagerRecord(id, 'feedback');
+}
+
+export async function getTalentRecord(id: string) {
+  return getManagerRecord(id, 'talent');
 }
 
 export async function getParticipantMarcoZero(token: string) {
