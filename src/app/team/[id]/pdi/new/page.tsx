@@ -4,21 +4,15 @@ import { requireManager } from '@/lib/auth';
 import { getEmployee } from '@/lib/data/team';
 import {
   defaultPdiCycleLabel,
-  pdiAxes,
   pdiContextFields,
   pdiCycleTypes,
-  relatedCompetencies,
 } from '@/lib/pdi';
-
-const contextPlaceholders: Record<string, string> = {
-  contextAndRole: 'Resuma escopo, prioridades e condições que afetam o desenvolvimento neste ciclo.',
-  currentMoment: 'Descreva maturidade, desafios e transição sem transformar o momento em nota.',
-  strengthsToPreserve: 'Escolha repertórios que sustentam o próximo passo e que devem ser preservados.',
-  aspiration: 'Registre o movimento profissional desejado pela pessoa, sem presumir promoção.',
-  developmentDirection: 'Conecte capacidade, contexto e impacto em uma frase de direção.',
-  notPriorityNow: 'Proteja foco: registre oportunidades que não precisam virar prioridade neste ciclo.',
-  sourceReadings: 'Sintetize os sinais reais vindos de 90 dias, Competências ou PDI anterior. Não altere a autoria das fontes.',
-};
+import {
+  PdiCycleTypeField,
+  PdiDirectionSection,
+  PdiPrioritiesSection,
+  PdiPrivateNotesSection,
+} from '@/components/pdi-creation-sections';
 
 function sourceLabel(moduleType: string, cycleLabel: string | null) {
   const labels: Record<string, string> = {
@@ -223,12 +217,7 @@ export default async function NewPdiPage({
               <label htmlFor="cycleLabel">Ciclo</label>
               <input id="cycleLabel" name="cycleLabel" defaultValue={defaultPdiCycleLabel()} required />
             </div>
-            <div className="field">
-              <label htmlFor="cycleType">Tipo de PDI</label>
-              <select id="cycleType" name="cycleType" defaultValue={suggestedType} required>
-                {pdiCycleTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
-            </div>
+            <PdiCycleTypeField suggestedType={suggestedType} />
           </div>
 
           <div className="grid" style={{ gap: 10, marginTop: 16 }}>
@@ -242,83 +231,15 @@ export default async function NewPdiPage({
             )}
           </div>
 
-          <div className="field" style={{ marginTop: 16 }}>
-            <label htmlFor="extraordinaryReason">Motivo extraordinário <span className="muted">(somente se aplicável)</span></label>
-            <textarea id="extraordinaryReason" name="extraordinaryReason" rows={3} placeholder="Preencha apenas se o tipo escolhido for Revisão extraordinária." />
-          </div>
-
           <label className="checkboxRow" style={{ marginTop: 14 }}>
             <input type="checkbox" name="ninetyDaysConfirmed" />
             <span>Confirmo que a devolutiva de 90 dias já ocorreu quando este tipo de PDI exigir esse pré-requisito, mesmo que o registro ainda não esteja migrado para a V2.</span>
           </label>
         </section>
 
-        <section className="card">
-          <p className="eyebrow">2. Direção do ciclo</p>
-          <h2>Contexto antes das prioridades</h2>
-          <div className="grid grid2">
-            {pdiContextFields.map(([key, label]) => {
-              const required = ['contextAndRole', 'currentMoment', 'strengthsToPreserve', 'aspiration', 'developmentDirection'].includes(key);
-              return (
-                <div className="field" key={key}>
-                  <label htmlFor={key}>{label}{!required && <span className="muted"> (opcional)</span>}</label>
-                  <textarea id={key} name={key} rows={4} required={required} placeholder={contextPlaceholders[key]} />
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="card">
-          <p className="eyebrow">3. Prioridades</p>
-          <h2>Até 3 movimentos de desenvolvimento</h2>
-          <p className="muted">A prioridade 1 é obrigatória. Abra as prioridades 2 e 3 somente se elas realmente aumentarem foco, e não o transformarem em checklist.</p>
-
-          <div className="grid" style={{ gap: 12 }}>
-            {[1, 2, 3].map((index) => (
-              <details className="competencyAccordion" key={index} open={index === 1}>
-                <summary className="competencySummary">
-                  <span><strong>Prioridade {index}</strong><small>{index === 1 ? 'Obrigatória' : 'Opcional'}</small></span>
-                  <span className="competencyChevron" aria-hidden="true">⌄</span>
-                </summary>
-                <div className="competencyAccordionBody grid grid2">
-                  <div className="field">
-                    <label htmlFor={`priority_${index}_axis`}>Eixo</label>
-                    <select id={`priority_${index}_axis`} name={`priority_${index}_axis`} defaultValue="">
-                      <option value="">Selecione</option>
-                      {pdiAxes.map((axis) => <option key={axis.value} value={axis.value}>{axis.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`priority_${index}_relatedCompetency`}>Competência relacionada <span className="muted">(opcional)</span></label>
-                    <select id={`priority_${index}_relatedCompetency`} name={`priority_${index}_relatedCompetency`} defaultValue="">
-                      <option value="">Sem vínculo obrigatório</option>
-                      {relatedCompetencies.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  </div>
-                  <div className="field" style={{ gridColumn: '1 / -1' }}>
-                    <label htmlFor={`priority_${index}_title`}>Título: capacidade + impacto</label>
-                    <input id={`priority_${index}_title`} name={`priority_${index}_title`} placeholder="Ex.: Conduzir pactuações multiarea com clareza e influência." />
-                  </div>
-                  <div className="field"><label>Estado atual</label><textarea name={`priority_${index}_currentState`} rows={4} placeholder="Padrão atual com fatos, sem desqualificar a pessoa." /></div>
-                  <div className="field"><label>Estado desejado</label><textarea name={`priority_${index}_desiredState`} rows={4} placeholder="Comportamento ou resultado que indicará evolução." /></div>
-                  <div className="field"><label>Prática ou experiência</label><textarea name={`priority_${index}_practice`} rows={4} placeholder="Situação real de trabalho em que a capacidade será praticada." /></div>
-                  <div className="field"><label>Evidência natural</label><textarea name={`priority_${index}_evidence`} rows={4} placeholder="Produto ou efeito verificável do trabalho, sem microgestão." /></div>
-                  <div className="field"><label>Apoio do gestor/organização</label><textarea name={`priority_${index}_support`} rows={4} placeholder="Contexto, exposição, conexão, recurso ou debrief necessário." /></div>
-                  <div className="field"><label>Autonomia</label><textarea name={`priority_${index}_autonomy`} rows={4} placeholder="O que a pessoa pode decidir e quais situações pedem alinhamento." /></div>
-                </div>
-              </details>
-            ))}
-          </div>
-        </section>
-
-        <section className="card">
-          <p className="eyebrow">Notas privadas</p>
-          <div className="field">
-            <label htmlFor="privateNotes">Observações do gestor</label>
-            <textarea id="privateNotes" name="privateNotes" rows={3} placeholder="Hipóteses de acompanhamento que não compõem o plano compartilhado. Não esconda aqui decisões que afetem a pessoa." />
-          </div>
-        </section>
+        <PdiDirectionSection />
+        <PdiPrioritiesSection />
+        <PdiPrivateNotesSection />
 
         <div><button className="button" type="submit">Criar PDI Evolutivo</button></div>
       </form>
