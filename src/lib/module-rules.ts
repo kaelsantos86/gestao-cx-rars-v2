@@ -27,12 +27,10 @@ export function eligibleForTalent(record: ModuleRecord): boolean {
   if (!canBeFormalSource(record)) return false;
 
   if (record.moduleType === 'feedback') {
-    const kind = String(record.payload.feedbackKind ?? '');
-    const hasEvidence = Boolean(record.payload.hasEvidence);
-    return ['recognition', 'promotion'].includes(kind) && hasEvidence;
+    return record.payload.feedbackFlow === 'recognition'
+      && record.payload.talentEligible === true
+      && record.payload.recognitionEvidenceReady === true;
   }
 
-  return ['marco_zero', 'ninety_days', 'competencies', 'pdi'].includes(
-    record.moduleType,
-  );
+  return ['marco_zero', 'ninety_days', 'competencies', 'pdi'].includes(record.moduleType);
 }
