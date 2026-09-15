@@ -149,6 +149,47 @@ button:disabled {
   margin-bottom: 0;
 }
 
+.card:has(#cycleType) .workspaceMiniCard {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  padding: 34px 108px 14px 14px;
+}
+
+.card:has(#cycleType) .workspaceMiniCard::before {
+  content: 'Fonte utilizada';
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.card:has(#cycleType) .workspaceMiniCard::after {
+  content: 'Concluída';
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.card:has(#cycleType) .workspaceMiniCard strong,
+.card:has(#cycleType) .workspaceMiniCard .muted {
+  display: block;
+}
+
+.card:has(#cycleType) .workspaceMiniCard strong {
+  line-height: 1.35;
+}
+
 .comparisonList {
   display: grid;
   gap: 8px;
@@ -214,5 +255,16 @@ button:disabled {
   .comparisonRow .badge {
     grid-column: 1 / -1;
     justify-self: start;
+  }
+
+  .card:has(#cycleType) .workspaceMiniCard {
+    padding-right: 14px;
+    padding-top: 62px;
+  }
+
+  .card:has(#cycleType) .workspaceMiniCard::after {
+    top: 32px;
+    left: 14px;
+    right: auto;
   }
 }
