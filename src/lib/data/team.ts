@@ -1,5 +1,6 @@
 import { hasSupabaseEnv } from '@/lib/env';
 import { requireManager } from '@/lib/auth';
+import { buildOfficialSummary } from '@/lib/official-summary';
 import {
   demoTeam,
   demoTimeline,
@@ -221,6 +222,11 @@ function timelineStatusLabel(status: string) {
   return labels[status] ?? status;
 }
 
+function canShowOfficialSummary(moduleType: string, status: string) {
+  if (status === 'completed') return true;
+  return moduleType === 'pdi' && ['active', 'in_review'].includes(status);
+}
+
 export async function getEmployeeTimeline(id: string): Promise<TimelineItem[]> {
   if (!hasSupabaseEnv()) return demoTimeline[id] ?? [];
 
@@ -228,22 +234,44 @@ export async function getEmployeeTimeline(id: string): Promise<TimelineItem[]> {
   const supabase = auth!.supabase;
   const { data, error } = await supabase
     .from('module_records')
-    .select('id, module_type, status, cycle_label, occurred_on, created_at, imported_from_legacy')
+    .select('id, module_type, status, cycle_label, occurred_on, created_at, imported_from_legacy, payload')
     .eq('employee_id', id)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
+  const records = data ?? [];
 
-  return (data ?? []).map((record) => {
+  const responseByRecord = new Map<string, unknown>();
+  if (records.length > 0) {
+    const { data: responses, error: responseError } = await supabase
+      .from('participant_responses')
+      .select('record_id, version, response_payload')
+      .in('record_id', records.map((record) => record.id))
+      .order('version', { ascending: false });
+    if (responseError) throw responseError;
+
+    for (const response of responses ?? []) {
+      if (!responseByRecord.has(response.record_id)) {
+        responseByRecord.set(response.record_id, response.response_payload);
+      }
+    }
+  }
+
+  return records.map((record) => {
     const importedFromLegacy = Boolean(record.imported_from_legacy);
     const hasOriginalDate = Boolean(record.occurred_on);
+    const moduleType = String(record.module_type);
+    const status = String(record.status);
+    const officialSummary = canShowOfficialSummary(moduleType, status)
+      ? buildOfficialSummary(moduleType, record.payload, responseByRecord.get(record.id), record.cycle_label)
+      : null;
 
     return {
       id: record.id,
-      module: String(record.module_type),
-      title: record.cycle_label || moduleLabel(String(record.module_type)),
-      status: timelineStatusLabel(String(record.status)),
+      module: moduleType,
+      title: record.cycle_label || moduleLabel(moduleType),
+      status: timelineStatusLabel(status),
       date: importedFromLegacy && !hasOriginalDate
         ? 'Data original não informada'
         : record.occurred_on || String(record.created_at).slice(0, 10),
@@ -252,6 +280,7 @@ export async function getEmployeeTimeline(id: string): Promise<TimelineItem[]> {
           ? 'Histórico migrado da V1 e preservado na trajetória profissional.'
           : 'Histórico migrado da V1. A data técnica da migração não substitui a data original do registro.'
         : 'Registro da trajetória profissional na Gestão CX RARS.',
+      ...(officialSummary ? { officialSummary } : {}),
     };
   });
 }
