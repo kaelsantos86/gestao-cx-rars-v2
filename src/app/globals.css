@@ -95,9 +95,28 @@ button, input { font: inherit; }
 
 .profileHeader { display: flex; gap: 20px; align-items: center; }
 .profileAvatar { width: 76px; height: 76px; border-radius: 24px; font-size: 24px; }
-.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 24px 0; }
-.tabs span { border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; background: var(--surface); color: var(--muted); font-size: 13px; }
-.tabs span:first-child { background: var(--accent); border-color: var(--accent); color: white; }
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 24px 0 0;
+}
+.tabs a {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+.tabs a:hover { background: var(--surface-soft); color: var(--text); }
+.tabs a.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
 .timeline { position: relative; display: grid; gap: 14px; }
 .timelineItem { display: grid; grid-template-columns: 110px 1fr; gap: 16px; }
 .timelineDate { color: var(--muted); font-size: 13px; padding-top: 18px; }
@@ -119,6 +138,16 @@ button, input { font: inherit; }
   .topbarInner { align-items: flex-start; flex-direction: column; }
   .grid4, .grid3, .grid2 { grid-template-columns: 1fr; }
   .employeeRow { grid-template-columns: 1fr; }
+  .profileHeader { align-items: flex-start; flex-wrap: wrap; }
+  .profileAvatar { width: 58px; height: 58px; border-radius: 18px; font-size: 19px; }
+  .tabs {
+    margin-right: -20px;
+    padding-right: 20px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
   .timelineItem { grid-template-columns: 1fr; gap: 5px; }
   .timelineDate { padding-top: 0; }
 }
