@@ -49,6 +49,16 @@ export type TalentSourceRow = {
   payload: Record<string, any> | null;
 };
 
+export type TalentSourceSnapshot = {
+  id: string;
+  moduleType: string;
+  moduleLabel: string;
+  cycleLabel: string;
+  status: string;
+  referenceDate: string;
+  signals: string[];
+};
+
 export function isTalentSourceEligible(record: TalentSourceRow) {
   if (record.module_type === 'pdi') {
     return ['active', 'in_review', 'completed', 'archived'].includes(record.status);
@@ -128,4 +138,16 @@ export function extractTalentSignals(record: TalentSourceRow): string[] {
   }
 
   return signals.slice(0, 5);
+}
+
+export function buildTalentSourceSnapshot(records: TalentSourceRow[]): TalentSourceSnapshot[] {
+  return records.map((record) => ({
+    id: record.id,
+    moduleType: record.module_type,
+    moduleLabel: talentSourceLabel(record.module_type),
+    cycleLabel: record.cycle_label ?? 'Registro formal',
+    status: record.status,
+    referenceDate: String(record.completed_at ?? record.occurred_on ?? record.created_at).slice(0, 10),
+    signals: extractTalentSignals(record),
+  }));
 }
