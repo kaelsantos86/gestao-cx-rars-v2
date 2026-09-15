@@ -1,6 +1,12 @@
 import { hasSupabaseEnv } from '@/lib/env';
 import { requireManager } from '@/lib/auth';
-import { demoTeam, demoTimeline, type EmployeeSummary, type TimelineItem } from '@/lib/demo-data';
+import {
+  demoTeam,
+  demoTimeline,
+  type CoreJourneyModule,
+  type EmployeeSummary,
+  type TimelineItem,
+} from '@/lib/demo-data';
 
 const momentLabels: Record<EmployeeSummary['professionalMoment'], string> = {
   entry: 'Entrada',
@@ -18,14 +24,24 @@ const moduleLabels: Record<EmployeeSummary['v2EntryModule'], string> = {
   talent: 'Talento em Evidência',
 };
 
+type OpenJourneyRecord = {
+  id: string;
+  module: CoreJourneyModule;
+  status: string;
+};
+
+function isCoreJourneyModule(value: string): value is CoreJourneyModule {
+  return ['marco_zero', 'ninety_days', 'competencies', 'pdi'].includes(value);
+}
+
 function deriveNextMilestone(
   entryModule: EmployeeSummary['v2EntryModule'],
   completed: Set<string>,
-  pdiStatus: string | null,
+  openRecord: OpenJourneyRecord | null,
 ) {
-  if (pdiStatus && ['active', 'in_review'].includes(pdiStatus)) return 'PDI ativo';
-  if (pdiStatus && ['draft', 'awaiting_participant', 'participant_submitted', 'in_conversation'].includes(pdiStatus)) {
-    return 'PDI Evolutivo';
+  if (openRecord) {
+    if (openRecord.module === 'pdi' && ['active', 'in_review'].includes(openRecord.status)) return 'PDI ativo';
+    return moduleLabels[openRecord.module];
   }
 
   if (entryModule === 'marco_zero') {
@@ -63,7 +79,7 @@ function mapEmployee(row: {
   professional_moment: EmployeeSummary['professionalMoment'];
   v2_entry_module: EmployeeSummary['v2EntryModule'];
   journey_note: string | null;
-}, completed = new Set<string>(), pdiStatus: string | null = null): EmployeeSummary {
+}, completed = new Set<string>(), openRecord: OpenJourneyRecord | null = null): EmployeeSummary {
   return {
     id: row.id,
     displayName: row.display_name,
@@ -73,14 +89,19 @@ function mapEmployee(row: {
     professionalMoment: row.professional_moment,
     v2EntryModule: row.v2_entry_module,
     journeyNote: row.journey_note ?? 'Ponto de entrada ainda não configurado.',
-    nextMilestone: deriveNextMilestone(row.v2_entry_module, completed, pdiStatus),
+    nextMilestone: deriveNextMilestone(row.v2_entry_module, completed, openRecord),
+    ...(openRecord ? {
+      openRecordId: openRecord.id,
+      openRecordModule: openRecord.module,
+      openRecordStatus: openRecord.status,
+    } : {}),
   };
 }
 
-function buildJourneyState(records: Array<{ employee_id: string; module_type: string; status: string }>) {
+function buildJourneyState(records: Array<{ id: string; employee_id: string; module_type: string; status: string }>) {
   const completedByEmployee = new Map<string, Set<string>>();
-  const pdiStatusByEmployee = new Map<string, string>();
-  const openPdiStatuses = new Set(['draft', 'awaiting_participant', 'participant_submitted', 'in_conversation', 'active', 'in_review']);
+  const openRecordByEmployee = new Map<string, OpenJourneyRecord>();
+  const terminalStatuses = new Set(['completed', 'archived', 'cancelled']);
 
   for (const record of records) {
     if (record.status === 'completed') {
@@ -89,12 +110,20 @@ function buildJourneyState(records: Array<{ employee_id: string; module_type: st
       completedByEmployee.set(record.employee_id, modules);
     }
 
-    if (record.module_type === 'pdi' && openPdiStatuses.has(record.status) && !pdiStatusByEmployee.has(record.employee_id)) {
-      pdiStatusByEmployee.set(record.employee_id, record.status);
+    if (
+      !terminalStatuses.has(record.status)
+      && isCoreJourneyModule(record.module_type)
+      && !openRecordByEmployee.has(record.employee_id)
+    ) {
+      openRecordByEmployee.set(record.employee_id, {
+        id: record.id,
+        module: record.module_type,
+        status: record.status,
+      });
     }
   }
 
-  return { completedByEmployee, pdiStatusByEmployee };
+  return { completedByEmployee, openRecordByEmployee };
 }
 
 export async function getTeam(): Promise<EmployeeSummary[]> {
@@ -114,14 +143,15 @@ export async function getTeam(): Promise<EmployeeSummary[]> {
 
   const { data: records, error: recordError } = await supabase
     .from('module_records')
-    .select('employee_id, module_type, status')
+    .select('id, employee_id, module_type, status')
     .in('employee_id', rows.map((row) => row.id))
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (recordError) throw recordError;
 
-  const { completedByEmployee, pdiStatusByEmployee } = buildJourneyState(
+  const { completedByEmployee, openRecordByEmployee } = buildJourneyState(
     (records ?? []).map((record) => ({
+      id: record.id,
       employee_id: record.employee_id,
       module_type: String(record.module_type),
       status: String(record.status),
@@ -131,7 +161,7 @@ export async function getTeam(): Promise<EmployeeSummary[]> {
   return rows.map((row) => mapEmployee(
     row,
     completedByEmployee.get(row.id) ?? new Set<string>(),
-    pdiStatusByEmployee.get(row.id) ?? null,
+    openRecordByEmployee.get(row.id) ?? null,
   ));
 }
 
@@ -150,7 +180,7 @@ export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
       .maybeSingle(),
     supabase
       .from('module_records')
-      .select('employee_id, module_type, status')
+      .select('id, employee_id, module_type, status')
       .eq('employee_id', id)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
@@ -160,8 +190,9 @@ export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
   if (recordError) throw recordError;
   if (!data) return null;
 
-  const { completedByEmployee, pdiStatusByEmployee } = buildJourneyState(
+  const { completedByEmployee, openRecordByEmployee } = buildJourneyState(
     (records ?? []).map((record) => ({
+      id: record.id,
       employee_id: record.employee_id,
       module_type: String(record.module_type),
       status: String(record.status),
@@ -171,7 +202,7 @@ export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
   return mapEmployee(
     data,
     completedByEmployee.get(id) ?? new Set<string>(),
-    pdiStatusByEmployee.get(id) ?? null,
+    openRecordByEmployee.get(id) ?? null,
   );
 }
 
