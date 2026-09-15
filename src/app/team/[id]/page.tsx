@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEmployee, getEmployeeTimeline } from '@/lib/data/team';
 import { getEligibleTalentSources } from '@/lib/data/talent';
+import type { EmployeeSummary } from '@/lib/demo-data';
 
 const journey = [
   { key: 'marco_zero', label: 'Marco Zero' },
@@ -25,18 +26,34 @@ function stepStatus(key: string, entryModule: string, timelineModules: Set<strin
   return 'Etapa futura';
 }
 
-function actionFor(employeeId: string, nextMilestone: string) {
-  if (nextMilestone === 'Marco Zero') {
-    return { href: `/team/${employeeId}/marco-zero/new`, label: 'Iniciar Marco Zero' };
+function actionFor(employee: EmployeeSummary) {
+  if (employee.openRecordId && employee.openRecordModule) {
+    const labels = {
+      marco_zero: 'Continuar Marco Zero',
+      ninety_days: 'Continuar Avaliação de 90 dias',
+      competencies: 'Continuar Avaliação de Competências',
+      pdi: ['active', 'in_review'].includes(employee.openRecordStatus ?? '')
+        ? 'Abrir PDI ativo'
+        : 'Continuar PDI Evolutivo',
+    };
+
+    return {
+      href: `/records/${employee.openRecordId}/${employee.openRecordModule.replace('_', '-')}`,
+      label: labels[employee.openRecordModule],
+    };
   }
-  if (nextMilestone === 'Avaliação de 90 dias') {
-    return { href: `/team/${employeeId}/ninety-days/new`, label: 'Iniciar Avaliação de 90 dias' };
+
+  if (employee.nextMilestone === 'Marco Zero') {
+    return { href: `/team/${employee.id}/marco-zero/new`, label: 'Iniciar Marco Zero' };
   }
-  if (nextMilestone === 'Competências') {
-    return { href: `/team/${employeeId}/competencies/new`, label: 'Iniciar Avaliação de Competências' };
+  if (employee.nextMilestone === 'Avaliação de 90 dias') {
+    return { href: `/team/${employee.id}/ninety-days/new`, label: 'Iniciar Avaliação de 90 dias' };
   }
-  if (nextMilestone === 'PDI Evolutivo') {
-    return { href: `/team/${employeeId}/pdi/new`, label: 'Iniciar PDI Evolutivo' };
+  if (employee.nextMilestone === 'Competências') {
+    return { href: `/team/${employee.id}/competencies/new`, label: 'Iniciar Avaliação de Competências' };
+  }
+  if (employee.nextMilestone === 'PDI Evolutivo') {
+    return { href: `/team/${employee.id}/pdi/new`, label: 'Iniciar PDI Evolutivo' };
   }
   return null;
 }
@@ -52,7 +69,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
   if (!employee) notFound();
 
   const timelineModules = new Set(timeline.map((item) => item.module));
-  const action = actionFor(employee.id, employee.nextMilestone);
+  const action = actionFor(employee);
   const hasTalentSources = talentSources.length > 0;
 
   return (
@@ -100,9 +117,11 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
         <h2 style={{ marginTop: 0 }}>Fluxo aplicável a este colaborador</h2>
         <div className="grid grid3">
           {journey.map((step, index) => {
-            const status = step.key === 'talent' && !hasTalentSources
-              ? 'Sem fontes válidas'
-              : stepStatus(step.key, employee.v2EntryModule, timelineModules);
+            const status = step.key === employee.openRecordModule
+              ? 'Em andamento'
+              : step.key === 'talent' && !hasTalentSources
+                ? 'Sem fontes válidas'
+                : stepStatus(step.key, employee.v2EntryModule, timelineModules);
 
             return (
               <div key={step.key} style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 14 }}>
@@ -148,7 +167,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
             <Link className="button" href={action.href}>{action.label}</Link>
           ) : (
             <span className="button buttonSecondary" aria-disabled="true" style={{ opacity: .65, cursor: 'default' }}>
-              {employee.nextMilestone === 'PDI ativo' ? 'PDI ativo — acompanhe pela Timeline' : `Próximo: ${employee.nextMilestone}`}
+              Próximo: {employee.nextMilestone}
             </span>
           )}
         </div>
