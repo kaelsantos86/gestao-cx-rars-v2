@@ -4,12 +4,13 @@ import { requireManager } from '@/lib/auth';
 import { getEmployee } from '@/lib/data/team';
 import { CompetencyAssessmentCard, CompetencySubmitButton } from '@/components/competency-assessment-card';
 import {
+  bandForScore,
+  buildAutomaticOfficialComment,
   competencies,
   competencyContextFields,
   competencyMoments,
   competencyRoleProfiles,
   defaultCompetencyCycleLabel,
-  isScoreValidForBand,
 } from '@/lib/competencies';
 
 const contextPlaceholders: Record<string, string> = {
@@ -44,14 +45,20 @@ async function createCompetencyReview(formData: FormData) {
 
   const initialAssessments = Object.fromEntries(
     competencies.map((competency) => {
-      const band = String(formData.get(`assessment_${competency.key}_band`) ?? '');
       const score = normalizeScore(formData.get(`assessment_${competency.key}_score`));
-      if (!isScoreValidForBand(score, band)) throw new Error(`invalid_score_${competency.key}`);
+      const band = bandForScore(score);
+      if (!band) throw new Error(`invalid_score_${competency.key}`);
 
       const evidence = String(formData.get(`assessment_${competency.key}_evidence`) ?? '').trim();
-      const officialComment = String(formData.get(`assessment_${competency.key}_officialComment`) ?? '').trim();
       const nextStep = String(formData.get(`assessment_${competency.key}_nextStep`) ?? '').trim();
-      if (!evidence || !officialComment) throw new Error(`missing_assessment_${competency.key}`);
+      if (!evidence) throw new Error(`missing_assessment_${competency.key}`);
+
+      const officialComment = buildAutomaticOfficialComment(
+        competency.label,
+        score,
+        evidence,
+        nextStep,
+      );
 
       return [competency.key, { band, score, evidence, officialComment, nextStep }];
     }),
@@ -79,6 +86,7 @@ async function createCompetencyReview(formData: FormData) {
     ...context,
     initialAssessments,
     sourceRecordIds: (sourceRecords ?? []).map((record) => record.id),
+    competencyUxVersion: 2,
   };
 
   const cycleLabel = String(formData.get('cycleLabel') ?? '').trim();
@@ -131,10 +139,10 @@ export default async function NewCompetencyPage({ params }: { params: Promise<{ 
       <Link href={`/team/${id}`} className="muted" style={{ fontSize: 13 }}>← Voltar para o perfil</Link>
       <p className="eyebrow" style={{ marginTop: 20 }}>Competências · Gestor</p>
       <h1 className="pageTitle">Preparar avaliação semestral</h1>
-      <p className="lead">{employee.displayName} · {employee.currentRole}. Avalie comportamentos demonstrados no contexto real, considerando tempo de exposição, oportunidades e apoio recebido.</p>
+      <p className="lead">{employee.displayName} · {employee.currentRole}. Informe a nota e os fatos observados. A plataforma calcula a faixa e prepara automaticamente o comentário para o +Evolução.</p>
 
       <div className="notice" style={{ marginBottom: 18 }}>
-        Ausência de oportunidade não é ausência de capacidade. A régua deve considerar fatos observados, clareza de expectativa e contexto real de demonstração.
+        A nota é a entrada principal. A faixa oficial é consequência automática da nota: 0,00–0,79 Não atende; 0,80–0,99 Atende parcialmente; 1,00–1,10 Atende à expectativa; 1,11–1,20 Supera a expectativa.
       </div>
 
       <form action={createCompetencyReview} className="grid" style={{ gap: 18 }}>
@@ -168,7 +176,7 @@ export default async function NewCompetencyPage({ params }: { params: Promise<{ 
                 <div className="field" key={key}>
                   <label htmlFor={key}>{label}{optional && <span className="muted"> (opcional)</span>}</label>
                   <textarea id={key} name={key} rows={4} required={!optional} placeholder={contextPlaceholders[key]} />
-                  {optional && <small className="fieldHelp">Não recrie fatos ou acordos apenas para preencher a sequência da plataforma.</small>}
+                  {optional && <small className="fieldHelp">Use apenas acordos reais do ciclo anterior.</small>}
                 </div>
               );
             })}
@@ -178,7 +186,7 @@ export default async function NewCompetencyPage({ params }: { params: Promise<{ 
         <section className="card">
           <p className="eyebrow">2. Avaliar</p>
           <h2>Sete competências oficiais</h2>
-          <p className="muted">Os cards começam recolhidos para facilitar o uso no celular. Abra uma competência por vez, escolha a faixa e registre nota, evidência e comentário. A própria faixa controla o intervalo permitido da nota.</p>
+          <p className="muted">Abra uma competência por vez. Você informa somente nota, comentário/evidência e, se necessário, um próximo foco. Faixa e comentário para a ferramenta oficial são produzidos automaticamente.</p>
           <div className="grid" style={{ gap: 12 }}>
             {competencies.map((competency) => (
               <CompetencyAssessmentCard key={competency.key} competency={competency} />
@@ -189,8 +197,8 @@ export default async function NewCompetencyPage({ params }: { params: Promise<{ 
         <section className="card">
           <p className="eyebrow">Notas privadas</p>
           <div className="field">
-            <label htmlFor="privateNotes">Observações do gestor</label>
-            <textarea id="privateNotes" name="privateNotes" rows={3} placeholder="Use apenas para hipóteses futuras ou pontos de observação. Não esconda aqui acordos, expectativas ou decisões que afetem a pessoa." />
+            <label htmlFor="privateNotes">Observações do gestor <span className="muted">(opcional)</span></label>
+            <textarea id="privateNotes" name="privateNotes" rows={3} placeholder="Somente hipóteses ou pontos de observação que não constituam acordo formal." />
           </div>
         </section>
 
