@@ -9,6 +9,7 @@ import {
   pdiAxes,
   pdiAxisLabel,
   pdiCycleTypeLabel,
+  pdiParticipantFields,
   pdiReviewStatuses,
   relatedCompetencies,
 } from '@/lib/pdi';
@@ -357,9 +358,14 @@ export default async function PdiManagerPage({
           <div className="workspaceBody">
             {participantSubmitted ? (
               <div className="grid grid2">
-                {Object.entries(participantOverview).map(([key, value]) => (
-                  <div key={key}><strong>{key}</strong><div className="muted">{value || '—'}</div></div>
-                ))}
+                {pdiParticipantFields
+                  .filter(([key]) => key !== 'observations' || Boolean(participantOverview[key]?.trim()))
+                  .map(([key, label]) => (
+                    <div key={key}>
+                      <strong>{label}</strong>
+                      <div className="muted">{participantOverview[key] || '—'}</div>
+                    </div>
+                  ))}
                 <div style={{ gridColumn: '1 / -1' }}><strong>Eixos de maior interesse</strong><div className="muted">{participantAxes.map(pdiAxisLabel).join(' · ') || '—'}</div></div>
               </div>
             ) : canBuild ? (
