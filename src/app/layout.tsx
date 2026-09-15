@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { AppHeader } from '@/components/app-header';
+import { PdiNewEnhancer } from '@/components/pdi-new-enhancer';
 import './globals.css';
 import './forms.css';
 
@@ -13,6 +14,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="pt-BR">
       <body>
         <AppHeader />
+        <PdiNewEnhancer />
         {children}
       </body>
     </html>
