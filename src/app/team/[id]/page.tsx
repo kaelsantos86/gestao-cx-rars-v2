@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { CopySummary } from '@/components/copy-summary';
 import { getEmployee, getEmployeeTimeline } from '@/lib/data/team';
 import { getEligibleTalentSources } from '@/lib/data/talent';
 import { getEmployeeDocuments } from '@/lib/data/documents';
@@ -117,7 +118,16 @@ function TimelineList({ items, emptyText }: { items: Timeline; emptyText: string
                 <span className="badge badgeAccent">{item.status}</span>
               </div>
               <p className="muted">{item.description}</p>
-              {href && <Link className="button buttonSecondary" href={href} style={{ marginTop: 8 }}>{recordLabel(item)}</Link>}
+
+              {item.officialSummary && (
+                <details style={{ marginTop: 12, border: '1px solid var(--line)', borderRadius: 14, padding: '12px 14px', background: 'var(--surface-soft)' }}>
+                  <summary style={{ cursor: 'pointer', fontWeight: 800 }}>Ver resumo para registro oficial</summary>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, margin: '14px 0' }}>{item.officialSummary}</div>
+                  <CopySummary text={item.officialSummary} />
+                </details>
+              )}
+
+              {href && <Link className="button buttonSecondary" href={href} style={{ marginTop: 12 }}>{recordLabel(item)}</Link>}
             </div>
           </article>
         );
