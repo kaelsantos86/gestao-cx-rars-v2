@@ -33,6 +33,10 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button:disabled {
+  opacity: .48;
+}
+
 .fieldHelp {
   display: block;
   margin-top: 7px;
