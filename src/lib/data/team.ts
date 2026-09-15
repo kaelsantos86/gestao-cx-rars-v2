@@ -206,6 +206,21 @@ export async function getEmployee(id: string): Promise<EmployeeSummary | null> {
   );
 }
 
+function timelineStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    draft: 'Preparação',
+    awaiting_participant: 'Aguardando participação',
+    participant_submitted: 'Respostas recebidas',
+    in_conversation: 'Em consolidação',
+    active: 'Ativo',
+    in_review: 'Em revisão',
+    completed: 'Concluído',
+    archived: 'Arquivado',
+    cancelled: 'Cancelado',
+  };
+  return labels[status] ?? status;
+}
+
 export async function getEmployeeTimeline(id: string): Promise<TimelineItem[]> {
   if (!hasSupabaseEnv()) return demoTimeline[id] ?? [];
 
@@ -213,21 +228,32 @@ export async function getEmployeeTimeline(id: string): Promise<TimelineItem[]> {
   const supabase = auth!.supabase;
   const { data, error } = await supabase
     .from('module_records')
-    .select('id, module_type, status, cycle_label, occurred_on, created_at')
+    .select('id, module_type, status, cycle_label, occurred_on, created_at, imported_from_legacy')
     .eq('employee_id', id)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
 
-  return (data ?? []).map((record) => ({
-    id: record.id,
-    module: String(record.module_type),
-    title: record.cycle_label || moduleLabel(String(record.module_type)),
-    status: String(record.status),
-    date: record.occurred_on || String(record.created_at).slice(0, 10),
-    description: 'Registro da trajetória profissional na Gestão CX RARS.',
-  }));
+  return (data ?? []).map((record) => {
+    const importedFromLegacy = Boolean(record.imported_from_legacy);
+    const hasOriginalDate = Boolean(record.occurred_on);
+
+    return {
+      id: record.id,
+      module: String(record.module_type),
+      title: record.cycle_label || moduleLabel(String(record.module_type)),
+      status: timelineStatusLabel(String(record.status)),
+      date: importedFromLegacy && !hasOriginalDate
+        ? 'Data original não informada'
+        : record.occurred_on || String(record.created_at).slice(0, 10),
+      description: importedFromLegacy
+        ? hasOriginalDate
+          ? 'Histórico migrado da V1 e preservado na trajetória profissional.'
+          : 'Histórico migrado da V1. A data técnica da migração não substitui a data original do registro.'
+        : 'Registro da trajetória profissional na Gestão CX RARS.',
+    };
+  });
 }
 
 function moduleLabel(module: string) {
