@@ -2,24 +2,21 @@ import { createHash, randomBytes } from 'node:crypto';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CopyLink } from '@/components/copy-link';
+import { CompetencyFinalReviewCard } from '@/components/competency-final-review-card';
 import { requireManager } from '@/lib/auth';
 import { getCompetencyRecord } from '@/lib/data/records';
 import {
+  bandForScore,
   bandLabel,
+  buildAutomaticOfficialComment,
   competencies,
-  competencyBands,
-  competencyConsolidationFields,
   competencyMoments,
   competencyRoleProfiles,
-  isScoreValidForBand,
+  scoreText,
 } from '@/lib/competencies';
 
 function normalizeScore(value: FormDataEntryValue | null) {
   return Number(String(value ?? '').replace(',', '.'));
-}
-
-function scoreText(value: unknown) {
-  return typeof value === 'number' ? value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 }
 
 function statusLabel(status: string) {
@@ -27,16 +24,27 @@ function statusLabel(status: string) {
     draft: 'Preparação do gestor',
     awaiting_participant: 'Autoavaliação convidada',
     participant_submitted: 'Autoavaliação recebida',
-    in_conversation: 'Consolidação registrada',
+    in_conversation: 'Em consolidação',
     completed: 'Concluída',
+    archived: 'Arquivada',
   };
   return labels[status] ?? status;
 }
 
-function comparisonLabel(managerBand: string | undefined, participantBand: string | undefined) {
+const bandOrder: Record<string, number> = {
+  not_meets: 0,
+  partial: 1,
+  meets: 2,
+  exceeds: 3,
+};
+
+function comparisonLabel(managerBand?: string, participantBand?: string) {
   if (!participantBand) return 'Sem autoavaliação';
-  if (managerBand === participantBand) return 'Convergência';
-  return 'Explorar na conversa';
+  if (!managerBand) return 'Sem leitura do gestor';
+  const delta = Math.abs((bandOrder[managerBand] ?? 0) - (bandOrder[participantBand] ?? 0));
+  if (delta === 0) return 'Convergência';
+  if (delta === 1) return 'Diferença a explorar';
+  return 'Ponto importante de conversa';
 }
 
 async function generateParticipantLink(formData: FormData) {
@@ -79,22 +87,22 @@ async function generateParticipantLink(formData: FormData) {
   redirect(`/records/${recordId}/competencies?invite=${encodeURIComponent(rawToken)}`);
 }
 
-async function saveConsolidation(formData: FormData) {
+async function finalizeCompetencies(formData: FormData) {
   'use server';
   const recordId = String(formData.get('recordId') ?? '');
   const auth = await requireManager();
   if (!auth) redirect('/login');
 
-  const [{ data: record, error: recordError }, { data: submitted, error: responseError }] = await Promise.all([
+  const [{ data: record, error: recordError }, { data: submittedResponse, error: responseError }] = await Promise.all([
     auth.supabase
       .from('module_records')
-      .select('payload')
+      .select('payload, status')
       .eq('id', recordId)
       .eq('module_type', 'competencies')
       .single(),
     auth.supabase
       .from('participant_responses')
-      .select('id')
+      .select('response_payload')
       .eq('record_id', recordId)
       .eq('is_submitted', true)
       .order('version', { ascending: false })
@@ -103,81 +111,131 @@ async function saveConsolidation(formData: FormData) {
   ]);
   if (recordError) throw recordError;
   if (responseError) throw responseError;
+  if (record.status === 'completed') redirect(`/records/${recordId}/competencies`);
 
   const skipSelfAssessment = formData.get('skipSelfAssessment') === 'on';
-  if (!submitted && !skipSelfAssessment) {
+  if (!submittedResponse && !skipSelfAssessment) {
     redirect(`/records/${recordId}/competencies?selfAssessment=decision`);
   }
 
-  const finalAssessments = Object.fromEntries(
-    competencies.map((competency) => {
-      const band = String(formData.get(`final_${competency.key}_band`) ?? '');
-      const score = normalizeScore(formData.get(`final_${competency.key}_score`));
-      const evidence = String(formData.get(`final_${competency.key}_evidence`) ?? '').trim();
-      const officialComment = String(formData.get(`final_${competency.key}_officialComment`) ?? '').trim();
-      const nextStep = String(formData.get(`final_${competency.key}_nextStep`) ?? '').trim();
-      if (!isScoreValidForBand(score, band) || !evidence || !officialComment) {
-        throw new Error(`invalid_final_assessment_${competency.key}`);
-      }
-      return [competency.key, { band, score, evidence, officialComment, nextStep }];
-    }),
-  );
-
-  const consolidation = Object.fromEntries(
-    competencyConsolidationFields.map(([key]) => [key, String(formData.get(key) ?? '').trim()]),
-  );
-  const returnDate = String(formData.get('returnDate') ?? '');
-  if (Object.values(consolidation).some((value) => !value) || !returnDate) {
-    redirect(`/records/${recordId}/competencies?consolidation=required`);
+  if (formData.get('conversationConfirmed') !== 'on') {
+    redirect(`/records/${recordId}/competencies?conversation=required`);
   }
 
-  const payload = {
-    ...((record.payload ?? {}) as Record<string, unknown>),
-    finalAssessments,
-    ...consolidation,
-    returnDate,
-    selfAssessmentUsed: Boolean(submitted),
-    selfAssessmentSkipped: !submitted,
-    consolidationSavedAt: new Date().toISOString(),
-  };
+  const finalAssessmentsEntries = competencies.map((competency) => {
+    const score = normalizeScore(formData.get(`final_${competency.key}_score`));
+    const band = bandForScore(score);
+    const evidence = String(formData.get(`final_${competency.key}_evidence`) ?? '').trim();
+    const nextStep = String(formData.get(`final_${competency.key}_nextStep`) ?? '').trim();
+    const suppliedComment = String(formData.get(`final_${competency.key}_officialComment`) ?? '').trim();
 
-  const { error } = await auth.supabase
-    .from('module_records')
-    .update({ payload, status: 'in_conversation', updated_at: new Date().toISOString() })
-    .eq('id', recordId)
-    .eq('module_type', 'competencies');
-  if (error) throw error;
+    if (!band || !evidence) throw new Error(`invalid_final_assessment_${competency.key}`);
 
-  redirect(`/records/${recordId}/competencies?consolidation=saved`);
-}
+    const officialComment = suppliedComment || buildAutomaticOfficialComment(
+      competency.label,
+      score,
+      evidence,
+      nextStep,
+    );
 
-async function concludeCompetencies(formData: FormData) {
-  'use server';
-  const recordId = String(formData.get('recordId') ?? '');
-  const auth = await requireManager();
-  if (!auth) redirect('/login');
+    return [competency.key, { band, score, evidence, officialComment, nextStep }] as const;
+  });
 
-  const { data: record, error } = await auth.supabase
-    .from('module_records')
-    .select('payload')
-    .eq('id', recordId)
-    .eq('module_type', 'competencies')
-    .single();
-  if (error) throw error;
+  const finalAssessments = Object.fromEntries(finalAssessmentsEntries);
+  const ranked = competencies
+    .map((competency) => ({ competency, assessment: finalAssessments[competency.key] }))
+    .sort((a, b) => Number(b.assessment.score) - Number(a.assessment.score));
 
-  const payload = (record.payload ?? {}) as Record<string, unknown>;
-  const finalAssessments = (payload.finalAssessments ?? {}) as Record<string, unknown>;
-  if (!payload.consolidationSavedAt || competencies.some((competency) => !finalAssessments[competency.key])) {
-    redirect(`/records/${recordId}/competencies?consolidation=required`);
+  const strongest = ranked.slice(0, 2);
+  const strengthSummary = strongest
+    .map(({ competency, assessment }) => `${competency.label} (${scoreText(assessment.score)}): ${assessment.officialComment}`)
+    .join(' ');
+
+  const explicitDevelopment = ranked
+    .slice()
+    .reverse()
+    .find(({ assessment }) => Boolean(assessment.nextStep?.trim()));
+  const participantPayload = (submittedResponse?.response_payload ?? {}) as Record<string, any>;
+  const participantOverview = (participantPayload.overview ?? {}) as Record<string, string>;
+  const participantCompetencies = (participantPayload.competencies ?? {}) as Record<string, { band?: string; evidence?: string }>;
+
+  let developmentPriority = '';
+  if (explicitDevelopment) {
+    developmentPriority = `${explicitDevelopment.competency.label}: ${explicitDevelopment.assessment.nextStep}`;
+  } else {
+    const lowest = ranked[ranked.length - 1];
+    if (lowest && Number(lowest.assessment.score) < 1) {
+      developmentPriority = `${lowest.competency.label}: ${lowest.assessment.officialComment}`;
+    } else if (participantOverview.desiredDevelopment?.trim()) {
+      developmentPriority = `Perspectiva do colaborador: ${participantOverview.desiredDevelopment.trim()}`;
+    }
   }
+
+  const differingCompetencies = competencies
+    .filter((competency) => {
+      const participantBand = participantCompetencies[competency.key]?.band;
+      return participantBand && participantBand !== finalAssessments[competency.key].band;
+    })
+    .map((competency) => competency.label);
+
+  const resultLine = competencies
+    .map((competency) => `${competency.label} ${scoreText(finalAssessments[competency.key].score)}`)
+    .join('; ');
+
+  const conversationAdjustment = String(formData.get('conversationAdjustment') ?? '').trim();
+  const nextCycleAgreement = String(formData.get('nextCycleAgreement') ?? '').trim();
+  const managerSupport = String(formData.get('managerSupport') ?? '').trim();
+  const returnDate = String(formData.get('returnDate') ?? '').trim();
+
+  const summaryParts = [
+    `Resultado do ciclo: ${resultLine}.`,
+    differingCompetencies.length
+      ? `Diferenças de percepção exploradas em: ${differingCompetencies.join(', ')}.`
+      : submittedResponse
+        ? 'As faixas da autoavaliação convergiram com a leitura final do gestor.'
+        : '',
+    developmentPriority ? `Prioridade de desenvolvimento: ${developmentPriority}.` : '',
+    conversationAdjustment,
+  ].filter(Boolean);
 
   const now = new Date().toISOString();
+  const existingPayload = (record.payload ?? {}) as Record<string, any>;
+  const payload = {
+    ...existingPayload,
+    finalAssessments,
+    strengthSummary,
+    recognizedStrengths: strengthSummary,
+    developmentPriority,
+    competencySummary: summaryParts.join(' '),
+    conversationAdjustment,
+    employeeAgreements: nextCycleAgreement,
+    managerSupport,
+    pdiConnection: nextCycleAgreement ? 'Avaliar conexão com o PDI conforme a prioridade acordada.' : '',
+    returnDate,
+    selfAssessmentUsed: Boolean(submittedResponse),
+    selfAssessmentSkipped: !submittedResponse,
+    consolidationSavedAt: now,
+    competencyUxVersion: 2,
+  };
+
   const { error: updateError } = await auth.supabase
     .from('module_records')
-    .update({ status: 'completed', participant_locked_at: now, completed_at: now, updated_at: now })
+    .update({
+      payload,
+      status: 'completed',
+      participant_locked_at: now,
+      completed_at: now,
+      updated_at: now,
+    })
     .eq('id', recordId)
     .eq('module_type', 'competencies');
   if (updateError) throw updateError;
+
+  await auth.supabase
+    .from('participant_access_tokens')
+    .update({ revoked_at: now })
+    .eq('record_id', recordId)
+    .is('revoked_at', null);
 
   redirect(`/records/${recordId}/competencies?completed=1`);
 }
@@ -187,7 +245,7 @@ export default async function CompetencyManagerPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ invite?: string; completed?: string; consolidation?: string; selfAssessment?: string }>;
+  searchParams: Promise<{ invite?: string; completed?: string; selfAssessment?: string; conversation?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -203,10 +261,8 @@ export default async function CompetencyManagerPage({
   const participantSubmitted = Boolean(record.latestResponse?.is_submitted);
   const participantPath = query.invite ? `/participate/competencies/${query.invite}` : null;
   const completed = record.status === 'completed';
-  const consolidationReady = Boolean(payload.consolidationSavedAt) && !completed;
   const roleLabel = competencyRoleProfiles.find((item) => item.value === payload.roleProfile)?.label ?? payload.roleProfile;
   const momentLabel = competencyMoments.find((item) => item.value === payload.momentInRole)?.label ?? payload.momentInRole;
-  const openConsolidation = Boolean(query.consolidation || query.selfAssessment || record.status === 'in_conversation');
 
   return (
     <main className="page">
@@ -221,20 +277,19 @@ export default async function CompetencyManagerPage({
         <span className="badge badgeAccent">{statusLabel(record.status)}</span>
       </section>
 
-      {query.completed && <div className="notice" style={{ marginBottom: 18 }}>Avaliação concluída. O registro está bloqueado para novas edições do colaborador e pode alimentar o PDI.</div>}
-      {query.consolidation === 'saved' && <div className="notice" style={{ marginBottom: 18 }}>Consolidação, notas finais e acordos salvos.</div>}
-      {query.consolidation === 'required' && <div className="notice" style={{ marginBottom: 18 }}>Complete as sete avaliações finais, a síntese e a data de retorno antes de concluir.</div>}
-      {query.selfAssessment === 'decision' && <div className="notice" style={{ marginBottom: 18 }}>A autoavaliação é opcional. Se não será usada neste ciclo, confirme explicitamente essa decisão antes de consolidar.</div>}
+      {query.completed && <div className="notice" style={{ marginBottom: 18 }}>Avaliação concluída. O resumo oficial foi gerado automaticamente e o registro já pode alimentar a trajetória e o PDI.</div>}
+      {query.selfAssessment === 'decision' && <div className="notice" style={{ marginBottom: 18 }}>A autoavaliação é opcional. Se o ciclo seguirá sem ela, marque essa decisão no fechamento.</div>}
+      {query.conversation === 'required' && <div className="notice" style={{ marginBottom: 18 }}>Confirme que a conversa foi realizada antes de concluir a avaliação.</div>}
 
       <div className="workspaceStack">
         <details className="workspaceAccordion">
           <summary className="workspaceSummary">
-            <span><strong>1. Contexto do semestre</strong><small>Momento, oportunidades reais e referências anteriores.</small></span>
-            <span className="badge">3 blocos</span>
+            <span><strong>1. Contexto do semestre</strong><small>Base registrada pelo gestor.</small></span>
+            <span className="badge">Contexto</span>
             <span className="competencyChevron" aria-hidden="true">⌄</span>
           </summary>
           <div className="workspaceBody grid grid3">
-            <article className="workspaceMiniCard"><strong>Semestre</strong><p className="muted">{String(payload.semesterContext ?? '—')}</p></article>
+            <article className="workspaceMiniCard"><strong>Momento e entregas</strong><p className="muted">{String(payload.semesterContext ?? '—')}</p></article>
             <article className="workspaceMiniCard"><strong>Oportunidades reais</strong><p className="muted">{String(payload.demonstrationOpportunities ?? '—')}</p></article>
             <article className="workspaceMiniCard"><strong>Acordos anteriores</strong><p className="muted">{String(payload.priorAgreements ?? '—')}</p></article>
           </div>
@@ -242,183 +297,156 @@ export default async function CompetencyManagerPage({
 
         <details className="workspaceAccordion" open={participantSubmitted}>
           <summary className="workspaceSummary">
-            <span><strong>2. Comparação gestor x colaborador</strong><small>As 7 competências em leitura rápida.</small></span>
-            <span className={`badge ${participantSubmitted ? 'badgeAccent' : ''}`}>{participantSubmitted ? 'Autoavaliação recebida' : 'Sem autoavaliação'}</span>
+            <span><strong>2. Comparação gestor × colaborador</strong><small>As sete competências lado a lado.</small></span>
+            <span className={`badge ${participantSubmitted ? 'badgeAccent' : ''}`}>{participantSubmitted ? 'Autoavaliação recebida' : 'Aguardando'}</span>
             <span className="competencyChevron" aria-hidden="true">⌄</span>
           </summary>
           <div className="workspaceBody">
-            <p className="muted" style={{ marginTop: 0 }}>A autoavaliação funciona como lente. A nota oficial continua sendo responsabilidade do gestor.</p>
-            <div className="comparisonList">
+            {!participantSubmitted && <p className="muted" style={{ marginTop: 0 }}>Quando a autoavaliação chegar, a comparação aparecerá aqui sem substituir sua leitura.</p>}
+            <div className="grid" style={{ gap: 10 }}>
               {competencies.map((competency) => {
-                const manager = initialAssessments[competency.key] ?? {};
+                const manager = finalAssessments[competency.key] ?? initialAssessments[competency.key] ?? {};
+                const managerBand = bandForScore(Number(manager.score)) ?? manager.band;
                 const participant = participantCompetencies[competency.key] ?? {};
                 return (
-                  <div className="comparisonRow" key={competency.key}>
-                    <div><strong>{competency.label}</strong><small>{competency.help}</small></div>
-                    <div><strong>Gestor</strong><span>{bandLabel(manager.band)} · {scoreText(manager.score)}</span></div>
-                    <div><strong>Colaborador</strong><span>{participantSubmitted ? bandLabel(participant.band) : '—'}</span></div>
-                    <span className="badge">{comparisonLabel(manager.band, participant.band)}</span>
-                  </div>
+                  <details className="competencyAccordion" key={competency.key}>
+                    <summary className="competencySummary">
+                      <span>
+                        <strong>{competency.label}</strong>
+                        <small>
+                          Gestor: {managerBand ? `${bandLabel(managerBand)} · ${typeof manager.score === 'number' ? scoreText(manager.score) : '—'}` : '—'} · Colaborador: {participantSubmitted ? bandLabel(participant.band) : '—'}
+                        </small>
+                      </span>
+                      <span className="badge">{comparisonLabel(managerBand ?? undefined, participant.band)}</span>
+                      <span className="competencyChevron" aria-hidden="true">⌄</span>
+                    </summary>
+                    <div className="competencyAccordionBody grid grid2">
+                      <div>
+                        <strong>Leitura do gestor</strong>
+                        <p className="muted">{manager.evidence || '—'}</p>
+                      </div>
+                      <div>
+                        <strong>Autoavaliação do colaborador</strong>
+                        <p className="muted">{participantSubmitted ? participant.evidence || 'Sem evidência registrada.' : 'Ainda não enviada.'}</p>
+                      </div>
+                    </div>
+                  </details>
                 );
               })}
             </div>
-          </div>
-        </details>
 
-        <details className="workspaceAccordion">
-          <summary className="workspaceSummary">
-            <span><strong>3. Leitura inicial do gestor</strong><small>Evidências e comentários já registrados.</small></span>
-            <span className="badge">7 competências</span>
-            <span className="competencyChevron" aria-hidden="true">⌄</span>
-          </summary>
-          <div className="workspaceBody grid" style={{ gap: 10 }}>
-            {competencies.map((competency) => {
-              const assessment = initialAssessments[competency.key] ?? {};
-              return (
-                <details className="competencyAccordion" key={competency.key}>
-                  <summary className="competencySummary">
-                    <span><strong>{competency.label}</strong><small>{bandLabel(assessment.band)} · {scoreText(assessment.score)}</small></span>
-                    <span className="competencyChevron" aria-hidden="true">⌄</span>
-                  </summary>
-                  <div className="competencyAccordionBody">
-                    <div className="muted"><strong>Evidência:</strong> {assessment.evidence || '—'}</div>
-                    <div className="muted" style={{ marginTop: 8 }}><strong>Comentário +Evolução:</strong> {assessment.officialComment || '—'}</div>
-                    {assessment.nextStep && <div className="muted" style={{ marginTop: 8 }}><strong>Próximo passo:</strong> {assessment.nextStep}</div>}
-                  </div>
-                </details>
-              );
-            })}
-          </div>
-        </details>
-
-        <details className="workspaceAccordion" open={Boolean(participantPath)}>
-          <summary className="workspaceSummary">
-            <span><strong>4. Autoavaliação opcional</strong><small>Convite, status e perspectiva do colaborador.</small></span>
-            <span className={`badge ${participantSubmitted ? 'badgeAccent' : ''}`}>{participantSubmitted ? 'Recebida' : 'Opcional'}</span>
-            <span className="competencyChevron" aria-hidden="true">⌄</span>
-          </summary>
-          <div className="workspaceBody">
-            {participantSubmitted ? (
-              <div className="grid grid2">
-                <div><strong>Principais contribuições</strong><div className="muted">{participantOverview.contributions || '—'}</div></div>
-                <div><strong>Desafios de contexto</strong><div className="muted">{participantOverview.contextChallenges || '—'}</div></div>
-                <div><strong>Desenvolvimento desejado</strong><div className="muted">{participantOverview.desiredDevelopment || '—'}</div></div>
-                <div><strong>Apoio necessário</strong><div className="muted">{participantOverview.supportNeeded || '—'}</div></div>
-                {participantOverview.additionalNotes && <div><strong>Observações adicionais</strong><div className="muted">{participantOverview.additionalNotes}</div></div>}
-              </div>
-            ) : <p className="muted">Pode ser consolidada sem autoavaliação, desde que essa decisão seja confirmada na etapa final.</p>}
-
-            {!completed && (
-              <div style={{ marginTop: 16 }}>
-                <form action={generateParticipantLink} style={{ display: 'inline-block' }}>
-                  <input type="hidden" name="recordId" value={record.id} />
-                  <button className="button" type="submit">Gerar novo link</button>
-                </form>
-                {participantPath && <div style={{ marginTop: 12 }}><CopyLink path={participantPath} /></div>}
+            {participantSubmitted && participantOverview.desiredDevelopment && (
+              <div className="notice" style={{ marginTop: 14 }}>
+                <strong>Desenvolvimento indicado pelo colaborador</strong>
+                <p className="muted" style={{ marginBottom: 0 }}>{participantOverview.desiredDevelopment}</p>
               </div>
             )}
           </div>
         </details>
 
-        <details className="workspaceAccordion" open={openConsolidation}>
-          <summary className="workspaceSummary">
-            <span><strong>5. Consolidação final</strong><small>Notas finais, acordos e ponte para o PDI.</small></span>
-            <span className={`badge ${payload.consolidationSavedAt ? 'badgeAccent' : ''}`}>{payload.consolidationSavedAt ? 'Salva' : 'Pendente'}</span>
-            <span className="competencyChevron" aria-hidden="true">⌄</span>
-          </summary>
-          <div className="workspaceBody">
-            <form action={saveConsolidation} className="grid" style={{ gap: 16 }}>
-              <input type="hidden" name="recordId" value={record.id} />
-              <fieldset disabled={completed} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, opacity: completed ? .62 : 1 }}>
-                {!participantSubmitted && !completed && (
-                  <label className="confirmationRow" style={{ marginBottom: 16 }}>
-                    <input type="checkbox" name="skipSelfAssessment" />
-                    <span><strong>Consolidar sem autoavaliação neste ciclo.</strong><small>A participação é opcional; esta confirmação evita ignorar uma resposta pendente por engano.</small></span>
-                  </label>
-                )}
-
-                <div className="grid" style={{ gap: 10 }}>
-                  {competencies.map((competency) => {
-                    const assessment = finalAssessments[competency.key] ?? initialAssessments[competency.key] ?? {};
-                    return (
-                      <details className="competencyAccordion" key={competency.key}>
-                        <summary className="competencySummary">
-                          <span><strong>{competency.label}</strong><small>{bandLabel(assessment.band)} · {scoreText(assessment.score)}</small></span>
-                          <span className="badge">Editar</span>
-                          <span className="competencyChevron" aria-hidden="true">⌄</span>
-                        </summary>
-                        <div className="competencyAccordionBody">
-                          <div className="grid grid2">
-                            <div className="field">
-                              <label htmlFor={`final_${competency.key}_band`}>Faixa final</label>
-                              <select id={`final_${competency.key}_band`} name={`final_${competency.key}_band`} defaultValue={assessment.band ?? ''} required>
-                                {competencyBands.map((band) => <option key={band.value} value={band.value}>{band.label} · {band.min.toFixed(2)}–{band.max.toFixed(2)}</option>)}
-                              </select>
-                            </div>
-                            <div className="field">
-                              <label htmlFor={`final_${competency.key}_score`}>Nota final</label>
-                              <input id={`final_${competency.key}_score`} name={`final_${competency.key}_score`} type="text" inputMode="decimal" defaultValue={String(assessment.score ?? '').replace('.', ',')} required />
-                              <small className="fieldHelp">Aceita vírgula ou ponto. A nota precisa permanecer dentro da faixa selecionada.</small>
-                            </div>
-                            <div className="field">
-                              <label htmlFor={`final_${competency.key}_evidence`}>Evidências observáveis</label>
-                              <textarea id={`final_${competency.key}_evidence`} name={`final_${competency.key}_evidence`} rows={3} defaultValue={assessment.evidence ?? ''} required />
-                            </div>
-                            <div className="field">
-                              <label htmlFor={`final_${competency.key}_officialComment`}>Comentário para o +Evolução</label>
-                              <textarea id={`final_${competency.key}_officialComment`} name={`final_${competency.key}_officialComment`} rows={3} defaultValue={assessment.officialComment ?? ''} required />
-                            </div>
-                          </div>
-                          <div className="field" style={{ marginTop: 10 }}>
-                            <label htmlFor={`final_${competency.key}_nextStep`}>Próximo passo ou acordo <span className="muted">(opcional)</span></label>
-                            <textarea id={`final_${competency.key}_nextStep`} name={`final_${competency.key}_nextStep`} rows={2} defaultValue={assessment.nextStep ?? ''} />
-                          </div>
-                        </div>
-                      </details>
-                    );
-                  })}
+        {!completed && (
+          <details className="workspaceAccordion" open={Boolean(participantPath) || !participantSubmitted}>
+            <summary className="workspaceSummary">
+              <span><strong>3. Autoavaliação</strong><small>Link exclusivo para as sete competências.</small></span>
+              <span className={`badge ${participantSubmitted ? 'badgeAccent' : ''}`}>{participantSubmitted ? 'Recebida' : 'Opcional'}</span>
+              <span className="competencyChevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div className="workspaceBody">
+              <p className="muted" style={{ marginTop: 0 }}>O colaborador avalia cada competência e registra uma evidência. Ele não vê sua nota antes da conversa.</p>
+              <form action={generateParticipantLink}>
+                <input type="hidden" name="recordId" value={record.id} />
+                <button className="button buttonSecondary" type="submit">{participantSubmitted ? 'Gerar novo link de revisão' : 'Gerar link da autoavaliação'}</button>
+              </form>
+              {participantPath && (
+                <div className="notice" style={{ marginTop: 14 }}>
+                  <strong>Link seguro gerado</strong>
+                  <p className="muted" style={{ margin: '8px 0' }}>O novo link revoga links anteriores e expira em 14 dias.</p>
+                  <CopyLink path={participantPath} />
                 </div>
-
-                <details className="competencyAccordion" style={{ marginTop: 12 }} open={Boolean(query.consolidation)}>
-                  <summary className="competencySummary">
-                    <span><strong>Síntese e acordos do ciclo</strong><small>Forças, prioridade, acordos, apoio, PDI e data de retorno.</small></span>
-                    <span className="badge">Obrigatório</span>
-                    <span className="competencyChevron" aria-hidden="true">⌄</span>
-                  </summary>
-                  <div className="competencyAccordionBody grid grid2">
-                    {competencyConsolidationFields.map(([key, label]) => (
-                      <div className="field" key={key}>
-                        <label htmlFor={key}>{label}</label>
-                        <textarea id={key} name={key} rows={3} defaultValue={String(payload[key] ?? '')} required />
-                      </div>
-                    ))}
-                    <div className="field">
-                      <label htmlFor="returnDate">Data de retorno</label>
-                      <input id="returnDate" name="returnDate" type="date" defaultValue={String(payload.returnDate ?? '')} required />
-                    </div>
-                  </div>
-                </details>
-
-                {!completed && <div style={{ marginTop: 16 }}><button className="button buttonSecondary" type="submit">Salvar consolidação</button></div>}
-              </fieldset>
-            </form>
-          </div>
-        </details>
-      </div>
-
-      <section className="card" style={{ marginTop: 18 }}>
-        <p className="eyebrow">Fechamento</p>
-        <h2>Concluir Avaliação de Competências</h2>
-        <p className="muted">A conclusão bloqueia novas edições, revoga links públicos e transforma esta avaliação em fonte válida para o PDI.</p>
-        {completed ? (
-          <span className="badge badgeAccent">Avaliação concluída</span>
-        ) : (
-          <form action={concludeCompetencies}>
-            <input type="hidden" name="recordId" value={record.id} />
-            <button className="button" type="submit" disabled={!consolidationReady}>{consolidationReady ? 'Concluir Avaliação de Competências' : 'Aguardando consolidação'}</button>
-          </form>
+              )}
+            </div>
+          </details>
         )}
-      </section>
+
+        {completed ? (
+          <details className="workspaceAccordion" open>
+            <summary className="workspaceSummary">
+              <span><strong>4. Fechamento</strong><small>Síntese produzida pela avaliação concluída.</small></span>
+              <span className="badge badgeAccent">Concluída</span>
+              <span className="competencyChevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div className="workspaceBody">
+              <p className="muted">{payload.competencySummary || 'Avaliação concluída. Consulte o resumo para registro oficial ao final da página.'}</p>
+              {payload.strengthSummary && <p className="muted"><strong>Forças:</strong> {payload.strengthSummary}</p>}
+              {payload.developmentPriority && <p className="muted"><strong>Prioridade:</strong> {payload.developmentPriority}</p>}
+              {payload.employeeAgreements && <p className="muted"><strong>Acordo do próximo ciclo:</strong> {payload.employeeAgreements}</p>}
+            </div>
+          </details>
+        ) : (
+          <section className="card">
+            <p className="eyebrow">4. Fechamento rápido</p>
+            <h2>Revisar, conversar e concluir</h2>
+            <p className="muted">As notas e comentários abaixo já vêm preenchidos com sua leitura inicial. Abra somente a competência que precisar ajustar após a conversa. O resumo final será montado automaticamente.</p>
+
+            <form action={finalizeCompetencies} className="grid" style={{ gap: 14 }}>
+              <input type="hidden" name="recordId" value={record.id} />
+
+              {!participantSubmitted && (
+                <label className="checkboxRow">
+                  <input type="checkbox" name="skipSelfAssessment" />
+                  <span><strong>Concluir sem autoavaliação</strong><br /><small className="muted">Confirmo que este ciclo seguirá sem a perspectiva formal do colaborador.</small></span>
+                </label>
+              )}
+
+              <div className="grid" style={{ gap: 10 }}>
+                {competencies.map((competency) => {
+                  const assessment = finalAssessments[competency.key] ?? initialAssessments[competency.key] ?? {};
+                  const participant = participantCompetencies[competency.key] ?? {};
+                  return (
+                    <CompetencyFinalReviewCard
+                      key={competency.key}
+                      competencyKey={competency.key}
+                      competencyLabel={competency.label}
+                      competencyHelp={competency.help}
+                      initial={assessment}
+                      participantBand={participant.band}
+                      participantEvidence={participant.evidence}
+                    />
+                  );
+                })}
+              </div>
+
+              <div className="grid grid2">
+                <div className="field">
+                  <label htmlFor="conversationAdjustment">Ajuste relevante após a conversa <span className="muted">(opcional)</span></label>
+                  <textarea id="conversationAdjustment" name="conversationAdjustment" rows={3} defaultValue={payload.conversationAdjustment ?? ''} placeholder="Registre somente algo que tenha mudado sua leitura ou que precise constar no fechamento." />
+                </div>
+                <div className="field">
+                  <label htmlFor="nextCycleAgreement">Acordo principal do próximo ciclo <span className="muted">(opcional)</span></label>
+                  <textarea id="nextCycleAgreement" name="nextCycleAgreement" rows={3} defaultValue={payload.employeeAgreements ?? ''} placeholder="Um acordo objetivo é suficiente quando houver." />
+                </div>
+                <div className="field">
+                  <label htmlFor="managerSupport">Apoio do gestor <span className="muted">(opcional)</span></label>
+                  <textarea id="managerSupport" name="managerSupport" rows={2} defaultValue={payload.managerSupport ?? ''} placeholder="Somente se houver apoio específico combinado." />
+                </div>
+                <div className="field">
+                  <label htmlFor="returnDate">Data de retorno <span className="muted">(opcional)</span></label>
+                  <input id="returnDate" name="returnDate" type="date" defaultValue={payload.returnDate ?? ''} />
+                </div>
+              </div>
+
+              <label className="checkboxRow">
+                <input type="checkbox" name="conversationConfirmed" required />
+                <span><strong>Conversa realizada e leitura final confirmada</strong><br /><small className="muted">As notas acima representam minha avaliação final deste ciclo.</small></span>
+              </label>
+
+              <div>
+                <button className="button" type="submit">Concluir avaliação e gerar resumo</button>
+              </div>
+            </form>
+          </section>
+        )}
+      </div>
     </main>
   );
 }
