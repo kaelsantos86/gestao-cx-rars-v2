@@ -110,6 +110,11 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                     Registrar Feedback
                   </Link>
                 )}
+                {step.key === 'talent' && (
+                  <Link className="button buttonSecondary" href={`/team/${employee.id}/talent/new`} style={{ marginTop: 12 }}>
+                    Preparar Talento
+                  </Link>
+                )}
               </div>
             );
           })}
@@ -161,6 +166,9 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                   )}
                   {item.module === 'feedback' && (
                     <Link className="button buttonSecondary" href={`/records/${item.id}/feedback`} style={{ marginTop: 8 }}>Abrir Feedback</Link>
+                  )}
+                  {item.module === 'talent' && (
+                    <Link className="button buttonSecondary" href={`/records/${item.id}/talent`} style={{ marginTop: 8 }}>Abrir Talento</Link>
                   )}
                 </div>
               </article>
