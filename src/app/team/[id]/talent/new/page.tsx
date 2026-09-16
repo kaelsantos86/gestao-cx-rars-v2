@@ -4,6 +4,7 @@ import { requireManager } from '@/lib/auth';
 import { getEmployee } from '@/lib/data/team';
 import { getEligibleTalentSources, getTalentSourcesByIds } from '@/lib/data/talent';
 import { buildTalentSourceSnapshot, extractTalentSignals, talentPurposes, talentSourceLabel } from '@/lib/talent';
+import { buildTalentExecutiveDraft } from '@/lib/workflow-automation';
 
 async function createTalentRecord(formData: FormData) {
   'use server';
@@ -13,9 +14,7 @@ async function createTalentRecord(formData: FormData) {
   const auth = await requireManager();
   if (!auth) redirect('/login');
 
-  if (!talentPurposes.some((item) => item.value === purpose)) {
-    throw new Error('invalid_talent_purpose');
-  }
+  if (!talentPurposes.some((item) => item.value === purpose)) throw new Error('invalid_talent_purpose');
 
   const sources = await getTalentSourcesByIds(employeeId, selectedIds);
   if (sources.length === 0 || sources.length !== new Set(selectedIds).size) {
@@ -24,6 +23,9 @@ async function createTalentRecord(formData: FormData) {
 
   const today = new Date().toISOString().slice(0, 10);
   const snapshotAt = new Date().toISOString();
+  const sourceSnapshot = buildTalentSourceSnapshot(sources);
+  const executive = buildTalentExecutiveDraft(sourceSnapshot);
+
   const { data: record, error } = await auth.supabase
     .from('module_records')
     .insert({
@@ -36,8 +38,10 @@ async function createTalentRecord(formData: FormData) {
       payload: {
         purpose,
         sourceIds: sources.map((source) => source.id),
-        sourceSnapshot: buildTalentSourceSnapshot(sources),
+        sourceSnapshot,
         sourceSnapshotAt: snapshotAt,
+        executive,
+        executiveDraftGeneratedAt: snapshotAt,
         ready: false,
       },
     })
@@ -66,11 +70,7 @@ export default async function NewTalentPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const [employee, sources] = await Promise.all([
-    getEmployee(id),
-    getEligibleTalentSources(id),
-  ]);
-
+  const [employee, sources] = await Promise.all([getEmployee(id), getEligibleTalentSources(id)]);
   if (!employee) notFound();
 
   return (
@@ -78,22 +78,18 @@ export default async function NewTalentPage({
       <Link href={`/team/${id}`} className="muted" style={{ fontSize: 13 }}>← Voltar para o perfil</Link>
       <p className="eyebrow" style={{ marginTop: 20 }}>Talento em Evidência · Gestor</p>
       <h1 className="pageTitle">Construir visão executiva</h1>
-      <p className="lead">{employee.displayName} · {employee.currentRole}. Use somente registros formais e evidências profissionais já disponíveis na trajetória.</p>
+      <p className="lead">{employee.displayName} · {employee.currentRole}. Selecione as fontes; o app monta um rascunho factual para você revisar, em vez de pedir uma nova redação do zero.</p>
 
       <div className="notice" style={{ marginBottom: 18 }}>
-        Este módulo organiza evidências para uma leitura executiva. Ele não classifica automaticamente a pessoa nem toma decisões de carreira.
+        O rascunho usa somente sinais já registrados nas fontes selecionadas. A conclusão executiva continua sendo revisada e assumida pelo gestor.
       </div>
-
-      {query.sources === 'required' && (
-        <div className="notice" style={{ marginBottom: 18 }}>Selecione pelo menos uma fonte formal válida.</div>
-      )}
+      {query.sources === 'required' && <div className="notice" style={{ marginBottom: 18 }}>Selecione pelo menos uma fonte formal válida.</div>}
 
       <form action={createTalentRecord} className="grid" style={{ gap: 18 }}>
         <input type="hidden" name="employeeId" value={employee.id} />
 
         <section className="card">
           <p className="eyebrow">1. Finalidade</p>
-          <h2 style={{ marginTop: 0 }}>Para que esta visão será usada?</h2>
           <div className="field">
             <label htmlFor="purpose">Finalidade gerencial</label>
             <select id="purpose" name="purpose" defaultValue="executive_view">
@@ -105,11 +101,9 @@ export default async function NewTalentPage({
         <section className="card">
           <p className="eyebrow">2. Fontes válidas</p>
           <h2 style={{ marginTop: 0 }}>Evidências da trajetória</h2>
-          <p className="muted">Somente registros concluídos — ou PDI formalmente ativo/em revisão — podem ser usados. Feedback de orientação não entra neste resumo.</p>
+          <p className="muted">Registros elegíveis já vêm selecionados. Desmarque somente o que não fizer sentido para esta fotografia executiva.</p>
 
-          {sources.length === 0 ? (
-            <div className="empty">Ainda não existem fontes formais elegíveis para compor esta visão executiva.</div>
-          ) : (
+          {sources.length === 0 ? <div className="empty">Ainda não existem fontes formais elegíveis.</div> : (
             <div className="workspaceStack">
               {sources.map((source) => {
                 const signals = extractTalentSignals(source).slice(0, 2);
@@ -118,10 +112,7 @@ export default async function NewTalentPage({
                     <input type="checkbox" name="sourceIds" value={source.id} defaultChecked style={{ width: 20, height: 20, accentColor: 'var(--accent)' }} />
                     <span>
                       <strong>{talentSourceLabel(source.module_type)} · {source.cycle_label ?? 'Registro formal'}</strong>
-                      <small className="muted" style={{ display: 'block', marginTop: 4 }}>{source.completed_at ? `Concluído em ${String(source.completed_at).slice(0, 10).split('-').reverse().join('/')}` : `Status: ${source.status}`}</small>
-                      {signals.length > 0 && (
-                        <small className="muted" style={{ display: 'block', marginTop: 8 }}>{signals.join(' · ')}</small>
-                      )}
+                      {signals.length > 0 && <small className="muted" style={{ display: 'block', marginTop: 8 }}>{signals.join(' · ')}</small>}
                     </span>
                   </label>
                 );
@@ -130,9 +121,7 @@ export default async function NewTalentPage({
           )}
         </section>
 
-        <div>
-          <button className="button" type="submit" disabled={sources.length === 0}>Criar Talento em Evidência</button>
-        </div>
+        <div><button className="button" type="submit" disabled={sources.length === 0}>Criar visão e gerar rascunho</button></div>
       </form>
     </main>
   );
