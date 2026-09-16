@@ -88,17 +88,19 @@ export function buildOfficialSummary(
     add(lines, 'Síntese do ciclo', payload.ninetyDaySummary);
     add(lines, 'Avanços e contribuições observáveis', payload.observableAdvances);
     add(lines, 'Forças observadas', payload.strengths);
-    add(lines, 'Prioridades de desenvolvimento', payload.developmentPriorities);
-    add(lines, 'Ajuste de rota', payload.possibleRouteAdjustment);
+    add(lines, 'Prioridade de desenvolvimento', payload.developmentPriorities);
+    add(lines, 'Ajuste de rota inicialmente considerado', payload.possibleRouteAdjustment);
     add(lines, 'Direção acordada', directionNames[text(payload.agreedDirection)] ?? payload.agreedDirection);
-    add(lines, 'Acordos de trabalho', payload.workAgreements);
+    add(lines, 'Ajuste relevante após a conversa', payload.conversationAdjustment);
+    add(lines, 'Acordo principal do próximo ciclo', payload.mainAgreement || payload.workAgreements);
+    add(lines, 'Apoio do gestor', payload.managerSupport || payload.managerCommitments);
     add(lines, 'Compromissos do colaborador', payload.employeeCommitments);
-    add(lines, 'Compromissos do gestor', payload.managerCommitments);
+    add(lines, 'Próximo acompanhamento', payload.nextFollowUp);
 
     const priorities = Array.isArray(payload.priorities) ? payload.priorities : [];
     priorities.forEach((priority: JsonObject, index: number) => {
       const parts = [text(priority.result), text(priority.evidence), text(priority.date), text(priority.support)].filter(Boolean);
-      if (parts.length) lines.push(`Prioridade ${index + 1}: ${parts.join(' | ')}`);
+      if (parts.length) lines.push(`Prioridade histórica ${index + 1}: ${parts.join(' | ')}`);
     });
 
     const reflections = (response.reflections ?? {}) as JsonObject;
@@ -152,11 +154,11 @@ export function buildOfficialSummary(
       lines.push(`${title}: ${parts.join(' | ')}`);
     });
 
+    add(lines, 'Ajuste realizado na conversa', payload.conversationAdjustment);
     add(lines, 'Compromisso do colaborador', payload.collaboratorCommitment);
     add(lines, 'Compromisso do gestor', payload.managerCommitment);
     add(lines, 'Acordo de autonomia', payload.autonomyAgreement);
-    add(lines, 'Acordos compartilhados', payload.sharedAgreements);
-    add(lines, 'Síntese da conversa', payload.conversationSummary);
+    add(lines, 'Síntese do plano', payload.conversationSummary);
     add(lines, 'Revisão formal prevista', payload.formalReviewDate);
 
     const review = (payload.review ?? {}) as JsonObject;
@@ -178,11 +180,10 @@ export function buildOfficialSummary(
     add(lines, 'Fatos ou impacto', payload.observedFacts || payload.generatedImpact);
     add(lines, 'Direção esperada', payload.expectedDirection || payload.futureDirection);
     add(lines, 'Fortalezas reconhecidas', payload.recognizedStrengths);
+    add(lines, 'Ajuste após a conversa', payload.conversationAdjustment);
+    add(lines, 'Acordo principal / próximo movimento', payload.mainAgreement || payload.nextMoves);
     add(lines, 'Compromisso do colaborador', payload.collaboratorCommitment);
-    add(lines, 'Compromisso do gestor', payload.managerCommitment);
-    add(lines, 'Próximos movimentos', payload.nextMoves);
-    add(lines, 'Espaço de autonomia', payload.autonomySpace);
-    add(lines, 'Retomada', payload.followupReason);
+    add(lines, 'Apoio do gestor', payload.managerCommitment);
     if (payload.recognitionMode === 'promotion') {
       add(lines, 'Transição de papel', payload.roleTransition);
       add(lines, 'Novas responsabilidades', payload.newResponsibilities);
@@ -191,9 +192,13 @@ export function buildOfficialSummary(
   }
 
   if (moduleType === 'talent') {
-    add(lines, 'Síntese executiva', payload.executiveSummary || payload.summary);
-    add(lines, 'Tese de recomendação', payload.recommendationThesis);
-    add(lines, 'Direção', payload.futureDirection);
+    const executive = (payload.executive ?? {}) as JsonObject;
+    add(lines, 'Mensagem executiva principal', executive.headline || payload.headline);
+    add(lines, 'Síntese executiva', executive.summary || payload.executiveSummary || payload.summary);
+    add(lines, 'Fortalezas e competências em evidência', executive.strengths || payload.strengths);
+    add(lines, 'Conclusão gerencial', executive.managerConclusion || payload.recommendationThesis);
+    ['delivery1', 'delivery2', 'delivery3'].forEach((key, index) => add(lines, `Entrega / contribuição ${index + 1}`, executive[key]));
+    ['indicator1', 'indicator2', 'indicator3'].forEach((key, index) => add(lines, `Indicador / evidência objetiva ${index + 1}`, executive[key]));
   }
 
   return lines.length ? lines.join('\n\n') : null;
