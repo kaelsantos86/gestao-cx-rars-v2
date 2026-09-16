@@ -5,7 +5,6 @@ import { CopyLink } from '@/components/copy-link';
 import { requireManager } from '@/lib/auth';
 import { getFeedbackRecord } from '@/lib/data/records';
 import {
-  feedbackClosingFields,
   feedbackFlowLabel,
   feedbackParticipantFields,
   orientationPreparationFields,
@@ -13,6 +12,7 @@ import {
   recognitionModeLabel,
   recognitionPreparationFields,
 } from '@/lib/feedback';
+import { buildFeedbackEssentialRecord } from '@/lib/workflow-automation';
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -32,38 +32,16 @@ async function generateParticipantLink(formData: FormData) {
   const recordId = String(formData.get('recordId') ?? '');
   const auth = await requireManager();
   if (!auth) redirect('/login');
-
   const rawToken = randomBytes(32).toString('base64url');
   const tokenHash = createHash('sha256').update(rawToken).digest('hex');
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-
-  await auth.supabase
-    .from('participant_access_tokens')
-    .update({ revoked_at: new Date().toISOString() })
-    .eq('record_id', recordId)
-    .is('revoked_at', null);
-
-  const { error } = await auth.supabase.from('participant_access_tokens').insert({
-    record_id: recordId,
-    token_hash: tokenHash,
-    expires_at: expiresAt,
-  });
+  await auth.supabase.from('participant_access_tokens').update({ revoked_at: new Date().toISOString() }).eq('record_id', recordId).is('revoked_at', null);
+  const { error } = await auth.supabase.from('participant_access_tokens').insert({ record_id: recordId, token_hash: tokenHash, expires_at: expiresAt });
   if (error) throw error;
-
-  const { data: record } = await auth.supabase
-    .from('module_records')
-    .select('status')
-    .eq('id', recordId)
-    .eq('module_type', 'feedback')
-    .single();
-
+  const { data: record } = await auth.supabase.from('module_records').select('status').eq('id', recordId).eq('module_type', 'feedback').single();
   if (record?.status === 'draft') {
-    await auth.supabase
-      .from('module_records')
-      .update({ status: 'awaiting_participant', updated_at: new Date().toISOString() })
-      .eq('id', recordId);
+    await auth.supabase.from('module_records').update({ status: 'awaiting_participant', updated_at: new Date().toISOString() }).eq('id', recordId);
   }
-
   redirect(`/records/${recordId}/feedback?invite=${encodeURIComponent(rawToken)}`);
 }
 
@@ -72,22 +50,9 @@ async function saveFeedbackClosing(formData: FormData) {
   const recordId = String(formData.get('recordId') ?? '');
   const auth = await requireManager();
   if (!auth) redirect('/login');
-
   const [{ data: record, error: recordError }, { data: submitted, error: responseError }] = await Promise.all([
-    auth.supabase
-      .from('module_records')
-      .select('payload, status')
-      .eq('id', recordId)
-      .eq('module_type', 'feedback')
-      .single(),
-    auth.supabase
-      .from('participant_responses')
-      .select('id')
-      .eq('record_id', recordId)
-      .eq('is_submitted', true)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    auth.supabase.from('module_records').select('payload, status').eq('id', recordId).eq('module_type', 'feedback').single(),
+    auth.supabase.from('participant_responses').select('response_payload').eq('record_id', recordId).eq('is_submitted', true).order('version', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (recordError) throw recordError;
   if (responseError) throw responseError;
@@ -97,13 +62,14 @@ async function saveFeedbackClosing(formData: FormData) {
   if (!submitted && !skipPerspective) redirect(`/records/${recordId}/feedback?perspective=decision`);
 
   const existingPayload = (record.payload ?? {}) as Record<string, any>;
-  const closing = Object.fromEntries(
-    feedbackClosingFields.map(([key]) => [key, String(formData.get(key) ?? '').trim()]),
-  );
-
-  if (!closing.essentialRecord || !closing.futureDirection) {
-    redirect(`/records/${recordId}/feedback?closing=required`);
-  }
+  const response = (submitted?.response_payload ?? {}) as Record<string, any>;
+  const conversationAdjustment = String(formData.get('conversationAdjustment') ?? '').trim();
+  const mainAgreement = String(formData.get('mainAgreement') ?? '').trim();
+  const managerCommitment = String(formData.get('managerCommitment') ?? '').trim();
+  const futureDirection = String(formData.get('futureDirection') ?? '').trim() || existingPayload.expectedDirection || existingPayload.futureDirection || '';
+  const autoRecord = buildFeedbackEssentialRecord(existingPayload, response, conversationAdjustment);
+  const essentialRecord = String(formData.get('essentialRecordOverride') ?? '').trim() || autoRecord;
+  if (!essentialRecord) redirect(`/records/${recordId}/feedback?closing=required`);
 
   const recognitionEvidenceReady = existingPayload.feedbackFlow === 'recognition'
     && Boolean(existingPayload.concreteContribution)
@@ -113,20 +79,19 @@ async function saveFeedbackClosing(formData: FormData) {
 
   const payload = {
     ...existingPayload,
-    ...closing,
+    conversationAdjustment,
+    mainAgreement,
+    managerCommitment,
+    nextMoves: mainAgreement || existingPayload.nextMoves || '',
+    futureDirection,
+    essentialRecord,
     participantPerspectiveUsed: Boolean(submitted),
     participantPerspectiveSkipped: !submitted,
     recognitionEvidenceReady,
     closingSavedAt: new Date().toISOString(),
   };
-
-  const { error } = await auth.supabase
-    .from('module_records')
-    .update({ payload, status: 'in_conversation', updated_at: new Date().toISOString() })
-    .eq('id', recordId)
-    .eq('module_type', 'feedback');
+  const { error } = await auth.supabase.from('module_records').update({ payload, status: 'in_conversation', updated_at: new Date().toISOString() }).eq('id', recordId).eq('module_type', 'feedback');
   if (error) throw error;
-
   redirect(`/records/${recordId}/feedback?closing=saved`);
 }
 
@@ -135,58 +100,21 @@ async function completeFeedback(formData: FormData) {
   const recordId = String(formData.get('recordId') ?? '');
   const auth = await requireManager();
   if (!auth) redirect('/login');
-
-  const { data: record, error } = await auth.supabase
-    .from('module_records')
-    .select('payload, status')
-    .eq('id', recordId)
-    .eq('module_type', 'feedback')
-    .single();
+  const { data: record, error } = await auth.supabase.from('module_records').select('payload, status').eq('id', recordId).eq('module_type', 'feedback').single();
   if (error) throw error;
-
   const payload = (record.payload ?? {}) as Record<string, any>;
-  if (record.status !== 'in_conversation' || !payload.closingSavedAt) {
-    redirect(`/records/${recordId}/feedback?closing=required`);
-  }
-
-  if (payload.feedbackFlow === 'recognition' && payload.recognitionMode === 'promotion' && !payload.promotionApproved) {
-    redirect(`/records/${recordId}/feedback?promotion=approval`);
-  }
-
+  if (record.status !== 'in_conversation' || !payload.closingSavedAt || !payload.essentialRecord) redirect(`/records/${recordId}/feedback?closing=required`);
+  if (payload.feedbackFlow === 'recognition' && payload.recognitionMode === 'promotion' && !payload.promotionApproved) redirect(`/records/${recordId}/feedback?promotion=approval`);
   const talentEligible = payload.feedbackFlow === 'recognition' && Boolean(payload.recognitionEvidenceReady);
   const now = new Date().toISOString();
-  const nextPayload = {
-    ...payload,
-    talentEligible,
-    completedWithEvidence: talentEligible,
-  };
-
-  const { error: updateError } = await auth.supabase
-    .from('module_records')
-    .update({
-      payload: nextPayload,
-      status: 'completed',
-      completed_at: now,
-      participant_locked_at: now,
-      updated_at: now,
-    })
-    .eq('id', recordId)
-    .eq('module_type', 'feedback');
+  const nextPayload = { ...payload, talentEligible, completedWithEvidence: talentEligible };
+  const { error: updateError } = await auth.supabase.from('module_records').update({ payload: nextPayload, status: 'completed', completed_at: now, participant_locked_at: now, updated_at: now }).eq('id', recordId).eq('module_type', 'feedback');
   if (updateError) throw updateError;
-
-  await auth.supabase
-    .from('participant_access_tokens')
-    .update({ revoked_at: now })
-    .eq('record_id', recordId)
-    .is('revoked_at', null);
-
+  await auth.supabase.from('participant_access_tokens').update({ revoked_at: now }).eq('record_id', recordId).is('revoked_at', null);
   redirect(`/records/${recordId}/feedback?completed=1`);
 }
 
-export default async function FeedbackManagerPage({
-  params,
-  searchParams,
-}: {
+export default async function FeedbackManagerPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ invite?: string; perspective?: string; closing?: string; promotion?: string; completed?: string }>;
 }) {
@@ -203,153 +131,66 @@ export default async function FeedbackManagerPage({
   const flow = String(payload.feedbackFlow ?? 'orientation');
   const recognitionMode = String(payload.recognitionMode ?? 'recognition');
   const preparationFields = flow === 'orientation' ? orientationPreparationFields : recognitionPreparationFields;
+  const autoRecord = buildFeedbackEssentialRecord(payload, response, payload.conversationAdjustment);
 
   return (
     <main className="page">
       <Link href={`/team/${record.employee.id}`} className="muted" style={{ fontSize: 13 }}>← Voltar para o perfil</Link>
-
       <section className="hero" style={{ marginTop: 16 }}>
-        <div>
-          <p className="eyebrow">Feedback pontual · Gestor</p>
-          <h1 className="pageTitle">{record.employee.display_name}</h1>
-          <p className="lead">{feedbackFlowLabel(flow)}{flow === 'recognition' ? ` · ${recognitionModeLabel(recognitionMode)}` : ''}</p>
-        </div>
+        <div><p className="eyebrow">Feedback pontual · Gestor</p><h1 className="pageTitle">{record.employee.display_name}</h1><p className="lead">{feedbackFlowLabel(flow)}{flow === 'recognition' ? ` · ${recognitionModeLabel(recognitionMode)}` : ''}</p></div>
         <span className="badge badgeAccent">{statusLabel(record.status)}</span>
       </section>
 
-      {query.closing === 'saved' && <div className="notice" style={{ marginBottom: 18 }}>Conversa e registro essencial salvos. Revise e conclua quando o conteúdo estiver confirmado.</div>}
-      {query.closing === 'required' && <div className="notice" style={{ marginBottom: 18 }}>Registre ao menos o resumo essencial e a direção futura antes de concluir.</div>}
-      {query.perspective === 'decision' && <div className="notice" style={{ marginBottom: 18 }}>Use a escuta do colaborador ou confirme explicitamente que seguirá sem o formulário opcional.</div>}
+      {query.closing === 'saved' && <div className="notice" style={{ marginBottom: 18 }}>Conversa registrada e resumo essencial gerado automaticamente.</div>}
+      {query.closing === 'required' && <div className="notice" style={{ marginBottom: 18 }}>Não foi possível gerar o registro essencial; revise a preparação.</div>}
+      {query.perspective === 'decision' && <div className="notice" style={{ marginBottom: 18 }}>Use a escuta do colaborador ou confirme que a conversa seguirá sem formulário.</div>}
       {query.promotion === 'approval' && <div className="notice" style={{ marginBottom: 18 }}>Promoção não pode ser concluída sem aprovação formal registrada.</div>}
-      {query.completed && <div className="notice" style={{ marginBottom: 18 }}>Feedback concluído. O registro está bloqueado para novas edições do colaborador.</div>}
+      {query.completed && <div className="notice" style={{ marginBottom: 18 }}>Feedback concluído e preservado na trajetória.</div>}
 
       <div className="workspaceStack">
-        <details className="workspaceAccordion">
-          <summary className="workspaceSummary">
-            <span><strong>1. Preparação do gestor</strong><small>Fatos, intenção e contexto específico da conversa.</small></span>
-            <span className="badge">{flow === 'orientation' ? 'Orientação' : recognitionModeLabel(recognitionMode)}</span>
-            <span className="competencyChevron" aria-hidden="true">⌄</span>
-          </summary>
+        <details className="workspaceAccordion" open>
+          <summary className="workspaceSummary"><span><strong>1. Preparação do gestor</strong><small>Fatos e intenção já registrados.</small></span><span className="badge">{flow === 'orientation' ? 'Orientação' : recognitionModeLabel(recognitionMode)}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
           <div className="workspaceBody grid grid2">
-            {preparationFields.map(([key, label]) => (
-              <article className="workspaceMiniCard" key={key}>
-                <strong>{label}</strong>
-                <p className="muted">{payload[key] || '—'}</p>
-              </article>
-            ))}
-            {flow === 'recognition' && recognitionMode === 'promotion' && promotionFields.map(([key, label]) => (
-              <article className="workspaceMiniCard" key={key}>
-                <strong>{label}</strong>
-                <p className="muted">{payload[key] || '—'}</p>
-              </article>
-            ))}
-            {flow === 'recognition' && recognitionMode === 'promotion' && (
-              <article className="workspaceMiniCard">
-                <strong>Promoção aprovada</strong>
-                <p className="muted">{payload.promotionApproved ? 'Sim · aprovação formal confirmada' : 'Não'}</p>
-              </article>
-            )}
+            {preparationFields.map(([key, label]) => <article className="workspaceMiniCard" key={key}><strong>{label}</strong><p className="muted">{payload[key] || '—'}</p></article>)}
+            {flow === 'recognition' && recognitionMode === 'promotion' && promotionFields.map(([key, label]) => <article className="workspaceMiniCard" key={key}><strong>{label}</strong><p className="muted">{payload[key] || '—'}</p></article>)}
           </div>
         </details>
 
-        <details className="workspaceAccordion">
-          <summary className="workspaceSummary">
-            <span><strong>2. Escuta opcional</strong><small>Perspectiva separada do colaborador antes da conversa.</small></span>
-            <span className="badge">{participantSubmitted ? 'Recebida' : 'Opcional'}</span>
-            <span className="competencyChevron" aria-hidden="true">⌄</span>
-          </summary>
+        <details className="workspaceAccordion" open={participantSubmitted || Boolean(participantPath)}>
+          <summary className="workspaceSummary"><span><strong>2. Escuta opcional</strong><small>Perspectiva separada da pessoa antes da conversa.</small></span><span className={`badge ${participantSubmitted ? 'badgeAccent' : ''}`}>{participantSubmitted ? 'Recebida' : 'Opcional'}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
           <div className="workspaceBody">
-            {participantSubmitted ? (
-              <div className="grid grid2">
-                {feedbackParticipantFields.map(([key, label]) => {
-                  const value = response[key];
-                  if (!value && key === 'additionalNotes') return null;
-                  return (
-                    <article className="workspaceMiniCard" key={key}>
-                      <strong>{label}</strong>
-                      <p className="muted">{value || '—'}</p>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="notice" style={{ marginBottom: 16 }}>Nenhuma perspectiva enviada. O link é opcional; o feedback pode seguir sem formulário se a escuta ocorrer diretamente na conversa.</div>
-            )}
+            {participantSubmitted ? <div className="grid grid2">{feedbackParticipantFields.filter(([key]) => Boolean(response[key]?.trim())).map(([key, label]) => <article className="workspaceMiniCard" key={key}><strong>{label}</strong><p className="muted">{response[key]}</p></article>)}</div> : <div className="notice" style={{ marginBottom: 16 }}>O link é opcional; a escuta pode ocorrer diretamente na conversa.</div>}
+            {!readOnly && <form action={generateParticipantLink}><input type="hidden" name="recordId" value={record.id} /><button className="button buttonSecondary" type="submit">Gerar link de perspectiva</button></form>}
+            {participantPath && <div className="notice" style={{ marginTop: 14 }}><CopyLink path={participantPath} /></div>}
+          </div>
+        </details>
 
+        <details className="workspaceAccordion" open={!readOnly && (participantSubmitted || record.status === 'in_conversation')}>
+          <summary className="workspaceSummary"><span><strong>3. Conversa e fechamento</strong><small>Registre somente o que a conversa acrescentou; o resumo é automático.</small></span><span className={`badge ${payload.closingSavedAt ? 'badgeAccent' : ''}`}>{payload.closingSavedAt ? 'Salvo' : 'Pendente'}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
+          <div className="workspaceBody">
             {!readOnly && (
-              <form action={generateParticipantLink}>
+              <form action={saveFeedbackClosing} className="grid" style={{ gap: 16 }}>
                 <input type="hidden" name="recordId" value={record.id} />
-                <button className="button buttonSecondary" type="submit">Gerar novo link</button>
+                {!participantSubmitted && <label className="checkboxRow"><input type="checkbox" name="skipPerspective" defaultChecked={Boolean(payload.participantPerspectiveSkipped)} /><span>Confirmo que a escuta foi ou será feita diretamente na conversa, sem formulário.</span></label>}
+                <div className="grid grid2">
+                  <div className="field"><label htmlFor="conversationAdjustment">O que mudou ou foi esclarecido na conversa? <span className="muted">(opcional)</span></label><textarea id="conversationAdjustment" name="conversationAdjustment" rows={3} defaultValue={payload.conversationAdjustment || ''} /></div>
+                  <div className="field"><label htmlFor="mainAgreement">Acordo principal / próximo movimento <span className="muted">(opcional)</span></label><textarea id="mainAgreement" name="mainAgreement" rows={3} defaultValue={payload.mainAgreement || payload.nextMoves || ''} /></div>
+                  <div className="field"><label htmlFor="managerCommitment">Apoio do gestor <span className="muted">(opcional)</span></label><textarea id="managerCommitment" name="managerCommitment" rows={3} defaultValue={payload.managerCommitment || ''} /></div>
+                  <div className="field"><label htmlFor="futureDirection">Direção futura <span className="muted">(opcional)</span></label><textarea id="futureDirection" name="futureDirection" rows={3} defaultValue={payload.futureDirection || payload.expectedDirection || ''} /></div>
+                </div>
+                <details className="competencyAccordion"><summary className="competencySummary"><span><strong>Ajustar registro essencial</strong><small>Opcional. Deixe em branco para usar o texto automático abaixo.</small></span><span className="competencyChevron" aria-hidden="true">⌄</span></summary><div className="competencyAccordionBody field"><textarea name="essentialRecordOverride" rows={5} placeholder="Só use se precisar corrigir ou condensar o texto automático." /></div></details>
+                <div><button className="button buttonSecondary" type="submit">Registrar conversa e gerar resumo</button></div>
               </form>
             )}
-
-            {participantPath && (
-              <div className="notice" style={{ marginTop: 14 }}>
-                <strong>Link seguro gerado</strong>
-                <p className="muted" style={{ margin: '8px 0' }}>O novo link revoga links anteriores e expira em 14 dias.</p>
-                <CopyLink path={participantPath} />
-              </div>
-            )}
-          </div>
-        </details>
-
-        <details className="workspaceAccordion" open={record.status === 'participant_submitted' || record.status === 'in_conversation'}>
-          <summary className="workspaceSummary">
-            <span><strong>3. Conversa e registro</strong><small>Escuta, compromissos proporcionais e síntese essencial.</small></span>
-            <span className="badge">{payload.closingSavedAt ? 'Salvo' : 'Pendente'}</span>
-            <span className="competencyChevron" aria-hidden="true">⌄</span>
-          </summary>
-          <div className="workspaceBody">
-            <form action={saveFeedbackClosing} className="grid" style={{ gap: 16 }}>
-              <input type="hidden" name="recordId" value={record.id} />
-              {!participantSubmitted && (
-                <label className="checkboxRow">
-                  <input type="checkbox" name="skipPerspective" defaultChecked={Boolean(payload.participantPerspectiveSkipped)} disabled={readOnly} />
-                  <span><strong>Seguir sem formulário do colaborador</strong><br /><small className="muted">Confirmo que a escuta será ou foi feita na conversa e não há necessidade de resposta pelo link.</small></span>
-                </label>
-              )}
-
-              <div className="grid grid2">
-                {feedbackClosingFields.map(([key, label]) => (
-                  <div className="field" key={key}>
-                    <label htmlFor={key}>{label}{['perceivedCare', 'collaboratorCommitment', 'managerCommitment', 'nextMoves', 'autonomySpace', 'followupReason'].includes(key) && <span className="muted"> (quando aplicável)</span>}</label>
-                    <textarea
-                      id={key}
-                      name={key}
-                      rows={4}
-                      defaultValue={payload[key] ?? ''}
-                      disabled={readOnly}
-                      placeholder={key === 'essentialRecord' ? 'Resuma situação, leitura, escuta, decisão e acordo em poucas linhas.' : 'Registre somente o necessário para esta situação.'}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {!readOnly && <div><button className="button buttonSecondary" type="submit">Salvar conversa e registro</button></div>}
-            </form>
+            {(payload.essentialRecord || autoRecord) && <div className="notice" style={{ marginTop: 14 }}><strong>Registro essencial automático</strong><p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{payload.essentialRecord || autoRecord}</p></div>}
           </div>
         </details>
       </div>
 
       <section className="card" style={{ marginTop: 18 }}>
-        <p className="eyebrow">Fechamento</p>
-        <h2 style={{ marginTop: 0 }}>Concluir Feedback</h2>
-        {flow === 'orientation' ? (
-          <p className="muted">Este registro permanece na trajetória profissional, mas não alimenta Talento em Evidência.</p>
-        ) : (
-          <p className="muted">Após a conclusão, este reconhecimento poderá alimentar Talento quando houver evidência profissional suficiente. Promoção confirmada exige aprovação formal.</p>
-        )}
-
-        {record.status === 'completed' ? (
-          <span className="badge badgeAccent">Concluído</span>
-        ) : payload.closingSavedAt ? (
-          <form action={completeFeedback}>
-            <input type="hidden" name="recordId" value={record.id} />
-            <button className="button" type="submit">Concluir Feedback</button>
-          </form>
-        ) : (
-          <span className="button buttonSecondary" aria-disabled="true" style={{ opacity: .65, cursor: 'default' }}>Aguardando registro da conversa</span>
-        )}
+        <p className="eyebrow">Fechamento</p><h2 style={{ marginTop: 0 }}>Concluir Feedback</h2>
+        {flow === 'orientation' ? <p className="muted">Orientação/correção permanece na trajetória, mas não alimenta Talento em Evidência.</p> : <p className="muted">Reconhecimento concluído pode alimentar Talento quando houver evidência profissional. Promoção continua exigindo aprovação formal.</p>}
+        {record.status === 'completed' ? <span className="badge badgeAccent">Concluído</span> : payload.closingSavedAt ? <form action={completeFeedback}><input type="hidden" name="recordId" value={record.id} /><button className="button" type="submit">Concluir Feedback</button></form> : <span className="badge">Registre a conversa para concluir</span>}
       </section>
     </main>
   );
