@@ -55,13 +55,6 @@ const competencyBandLabels: Record<string, string> = {
   exceeds: 'Supera a expectativa',
 };
 
-const competencyBandOrder: Record<string, number> = {
-  not_meets: 0,
-  partial: 1,
-  meets: 2,
-  exceeds: 3,
-};
-
 const ninetyDayDimensionLabels: Record<string, string> = {
   roleClarity: 'clareza do papel',
   deliveryQuality: 'entregas e qualidade',
@@ -300,7 +293,7 @@ export function buildPdiFinalSummary(payloadInput: unknown, responseInput?: unkn
   ]);
 }
 
-export function buildFeedbackFinalSummary(payloadInput: unknown, responseInput?: unknown) {
+export function buildFeedbackFinalSummary(payloadInput: unknown, _responseInput?: unknown) {
   const payload = (payloadInput ?? {}) as JsonObject;
   if (payload.essentialRecordManuallyAdjusted && text(payload.essentialRecord)) {
     return text(payload.essentialRecord);
