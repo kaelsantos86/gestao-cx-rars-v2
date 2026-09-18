@@ -394,10 +394,10 @@ export default async function NinetyDayManagerPage({
           </fieldset>
         </form>
 
-        {(payload.ninetyDaySummary || summaryPreview) && (
+        {summaryPreview && (
           <div className="notice" style={{ marginTop: 18 }}>
-            <strong>Síntese automática</strong>
-            <p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{payload.ninetyDaySummary || summaryPreview}</p>
+            <strong>Síntese final do ciclo</strong>
+            <p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{summaryPreview}</p>
           </div>
         )}
       </section>
