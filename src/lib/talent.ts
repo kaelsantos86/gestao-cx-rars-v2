@@ -1,3 +1,11 @@
+import {
+  buildCompetencyFinalSummary,
+  buildFeedbackFinalSummary,
+  buildMarcoZeroSummary,
+  buildNinetyDaySummary,
+  buildPdiFinalSummary,
+} from '@/lib/workflow-automation';
+
 export const talentPurposes = [
   { value: 'executive_view', label: 'Visão executiva' },
   { value: 'recognition', label: 'Reconhecimento' },
@@ -90,51 +98,36 @@ export function extractTalentSignals(record: TalentSourceRow): string[] {
   };
 
   if (record.module_type === 'marco_zero') {
-    push(payload.rolePurpose);
-    push(payload.first30DaysPriorities);
-    push(payload.successSignals);
-    push(payload.autonomyBoundaries);
+    push(buildMarcoZeroSummary(payload));
+    push(payload.expectedContribution || payload.rolePurpose);
+    push(payload.qualityCriteria || payload.successSignals);
   }
 
   if (record.module_type === 'ninety_days') {
-    push(payload.observableAdvances);
+    push(buildNinetyDaySummary(payload));
     push(payload.strengths);
-    push(payload.ninetyDaySummary);
-    const priorities = Array.isArray(payload.priorities) ? payload.priorities : [];
-    priorities.forEach((item: any) => push(item?.result));
+    push(payload.developmentPriorities);
   }
 
   if (record.module_type === 'competencies') {
+    push(buildCompetencyFinalSummary(payload));
     const assessments = (payload.finalAssessments ?? payload.initialAssessments ?? {}) as Record<string, any>;
     Object.values(assessments)
       .sort((a: any, b: any) => Number(b?.score ?? 0) - Number(a?.score ?? 0))
-      .slice(0, 3)
-      .forEach((item: any) => {
-        push(item?.officialComment);
-        push(item?.evidence);
-      });
-    push(payload.strengthSummary);
-    push(payload.developmentPriority);
+      .slice(0, 2)
+      .forEach((item: any) => push(item?.evidence));
   }
 
   if (record.module_type === 'pdi') {
-    const priorities = Array.isArray(payload.priorities) ? payload.priorities : [];
-    priorities.slice(0, 3).forEach((item: any) => {
-      push(item?.title);
-      push(item?.desiredState);
-      push(item?.evidence);
-    });
+    push(buildPdiFinalSummary(payload));
     push(payload.strengthsToPreserve);
     push(payload.developmentDirection);
-    push(payload.review?.cycleSummary);
   }
 
   if (record.module_type === 'feedback') {
-    push(payload.concreteContribution);
-    push(payload.generatedImpact);
-    push(payload.recognizedStrengths);
+    push(buildFeedbackFinalSummary(payload));
     push(payload.competenciesValues);
-    push(payload.essentialRecord);
+    push(payload.recognizedStrengths);
   }
 
   return signals.slice(0, 5);
