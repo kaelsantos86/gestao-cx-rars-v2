@@ -47,7 +47,7 @@ async function saveConversation(formData: FormData) {
   const [{ data: record, error: fetchError }, { data: submitted, error: responseError }] = await Promise.all([
     auth.supabase
       .from('module_records')
-      .select('payload')
+      .select('payload, status')
       .eq('id', recordId)
       .eq('module_type', 'ninety_days')
       .single(),
@@ -63,6 +63,9 @@ async function saveConversation(formData: FormData) {
 
   if (fetchError) throw fetchError;
   if (responseError) throw responseError;
+  if (['completed', 'archived', 'cancelled'].includes(String(record.status))) {
+    redirect(`/records/${recordId}/ninety-days`);
+  }
   if (!submitted) redirect(`/records/${recordId}/ninety-days?needsParticipant=1`);
 
   const existingPayload = (record.payload ?? {}) as Record<string, any>;
@@ -75,25 +78,20 @@ async function saveConversation(formData: FormData) {
   const mainAgreement = String(formData.get('mainAgreement') ?? '').trim();
   const managerSupport = String(formData.get('managerSupport') ?? '').trim();
   const directionLabel = ninetyDayDirections.find((item) => item.value === agreedDirection)?.label ?? agreedDirection;
-  const ninetyDaySummary = buildNinetyDaySummary(
-    existingPayload,
-    submitted.response_payload,
-    directionLabel,
-    conversationAdjustment,
-    mainAgreement,
-  );
-
-  const payload = {
+  const payloadBase = {
     ...existingPayload,
     agreedDirection,
     conversationAdjustment,
     mainAgreement,
     managerSupport,
-    ninetyDaySummary,
-    workAgreements: mainAgreement || existingPayload.workAgreements || '',
-    managerCommitments: managerSupport || existingPayload.managerCommitments || '',
+    workAgreements: mainAgreement,
+    managerCommitments: managerSupport,
     nextFollowUp: String(formData.get('nextFollowUp') ?? ''),
     conversationSavedAt: new Date().toISOString(),
+  };
+  const payload = {
+    ...payloadBase,
+    ninetyDaySummary: buildNinetyDaySummary(payloadBase, submitted.response_payload, directionLabel),
   };
 
   const { error } = await auth.supabase
@@ -115,7 +113,7 @@ async function concludeNinetyDay(formData: FormData) {
   const [{ data: record, error: recordError }, { data: submitted, error: responseError }] = await Promise.all([
     auth.supabase
       .from('module_records')
-      .select('payload')
+      .select('payload, status')
       .eq('id', recordId)
       .eq('module_type', 'ninety_days')
       .single(),
@@ -131,6 +129,9 @@ async function concludeNinetyDay(formData: FormData) {
 
   if (recordError) throw recordError;
   if (responseError) throw responseError;
+  if (['completed', 'archived', 'cancelled'].includes(String(record.status))) {
+    redirect(`/records/${recordId}/ninety-days`);
+  }
   if (!submitted) redirect(`/records/${recordId}/ninety-days?needsParticipant=1`);
 
   const payload = (record.payload ?? {}) as Record<string, unknown>;
@@ -191,7 +192,7 @@ export default async function NinetyDayManagerPage({
   const reflections = (response.reflections ?? {}) as Record<string, string>;
   const participantSubmitted = Boolean(record.latestResponse?.is_submitted);
   const participantPath = query.invite ? `/participate/ninety-days/${query.invite}` : null;
-  const completed = record.status === 'completed';
+  const completed = ['completed', 'archived'].includes(record.status);
   const conversationReady = participantSubmitted && !completed;
   const conclusionReady = participantSubmitted && Boolean(payload.conversationSavedAt) && !completed;
   const directionLabel = ninetyDayDirections.find((item) => item.value === payload.agreedDirection)?.label;

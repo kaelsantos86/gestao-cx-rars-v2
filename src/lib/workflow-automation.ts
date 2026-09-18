@@ -340,7 +340,8 @@ export function buildPdiAgreementSummary(
   responseInput: unknown,
   conversationAdjustment?: string,
 ) {
-  const payload = { ...((payloadInput ?? {}) as JsonObject), conversationAdjustment };
+  const existing = (payloadInput ?? {}) as JsonObject;
+  const payload = { ...existing, conversationAdjustment: conversationAdjustment ?? existing.conversationAdjustment };
   return buildPdiFinalSummary(payload, responseInput);
 }
 
@@ -348,12 +349,14 @@ export function buildPdiReviewSummary(
   prioritiesInput: unknown,
   reviewsInput: unknown,
   nextDirection?: string,
+  learningToPreserve?: string,
 ) {
   return buildPdiFinalSummary({
     priorities: Array.isArray(prioritiesInput) ? prioritiesInput : [],
     review: {
       objectiveReviews: Array.isArray(reviewsInput) ? reviewsInput : [],
       nextDirection,
+      learningToPreserve,
     },
   });
 }
@@ -364,9 +367,52 @@ export function buildFeedbackEssentialRecord(
   conversationAdjustment?: string,
 ) {
   return buildFeedbackFinalSummary(
-    { ...((payloadInput ?? {}) as JsonObject), conversationAdjustment },
+    {
+      ...((payloadInput ?? {}) as JsonObject),
+      conversationAdjustment: conversationAdjustment ?? ((payloadInput ?? {}) as JsonObject).conversationAdjustment,
+    },
     responseInput,
   );
+}
+
+export function buildPdiSourceContext(sourcesInput: unknown) {
+  const candidates = Array.isArray(sourcesInput) ? sourcesInput as JsonObject[] : [];
+  const seen = new Set<string>();
+  const sources = candidates
+    .filter((source) => !source.deleted_at && (
+      (['ninety_days', 'competencies'].includes(source.module_type) && source.status === 'completed')
+      || (source.module_type === 'pdi' && ['completed', 'archived'].includes(source.status))
+    ))
+    .slice()
+    .sort((a, b) => text(b.completed_at || b.created_at).localeCompare(text(a.completed_at || a.created_at)))
+    .filter((source) => {
+      if (seen.has(source.module_type)) return false;
+      seen.add(source.module_type);
+      return true;
+    });
+
+  const readings = sources.map((source) => {
+    const payload = (source.payload ?? {}) as JsonObject;
+    const summary = source.module_type === 'ninety_days'
+      ? buildNinetyDaySummary(payload)
+      : source.module_type === 'competencies'
+        ? buildCompetencyFinalSummary(payload)
+        : buildPdiFinalSummary(payload);
+    const moduleLabels: Record<string, string> = {
+      ninety_days: 'Avaliação de 90 dias', competencies: 'Competências', pdi: 'PDI anterior',
+    };
+    return { id: text(source.id), label: text(source.cycle_label) || moduleLabels[source.module_type], summary };
+  });
+  const sourcePayloads = sources.map((source) => (source.payload ?? {}) as JsonObject);
+  const firstValue = (read: (payload: JsonObject) => unknown) => sourcePayloads.map(read).map(text).find(Boolean) || '';
+
+  return {
+    sources: readings,
+    strengthsToPreserve: firstValue((payload) => payload.strengthsToPreserve || payload.recognizedStrengths || payload.strengthSummary || payload.strengths),
+    developmentDirection: firstValue((payload) => payload.review?.nextDirection || payload.developmentPriority || payload.developmentPriorities || payload.developmentDirection),
+    managerSupport: firstValue((payload) => payload.managerSupport || payload.managerCommitments || payload.managerCommitment),
+    sourceReadings: paragraphs(readings.filter((reading) => reading.summary).map((reading) => `${reading.label}\n${reading.summary}`)),
+  };
 }
 
 export function buildMarcoZeroConversationGuide(

@@ -62,7 +62,7 @@ export function PdiCycleTypeField({ suggestedType }: { suggestedType: string }) 
   );
 }
 
-export function PdiDirectionSection() {
+export function PdiDirectionSection({ defaultValues = {} }: { defaultValues?: Record<string, string> }) {
   const essentialFields = pdiContextFields.filter(([key]) => requiredContextKeys.has(key));
   const optionalFields = pdiContextFields.filter(([key]) => !requiredContextKeys.has(key));
 
@@ -86,6 +86,7 @@ export function PdiDirectionSection() {
               <textarea
                 id={key}
                 name={key}
+                defaultValue={defaultValues[key] ?? ''}
                 rows={4}
                 required
                 placeholder={contextPlaceholders[key]}
@@ -110,6 +111,7 @@ export function PdiDirectionSection() {
                 <textarea
                   id={key}
                   name={key}
+                  defaultValue={defaultValues[key] ?? ''}
                   rows={4}
                   placeholder={contextPlaceholders[key]}
                 />

@@ -160,7 +160,7 @@ async function savePdiReview(formData: FormData) {
   const nextDirection = String(formData.get('nextDirection') ?? '').trim();
   if (!nextDirection) redirect(`/records/${recordId}/pdi?review=required`);
   const learningToPreserve = String(formData.get('learningToPreserve') ?? '').trim();
-  const cycleSummary = buildPdiReviewSummary(priorities, objectiveReviews, nextDirection);
+  const cycleSummary = buildPdiReviewSummary(priorities, objectiveReviews, nextDirection, learningToPreserve);
   const nextPayload = {
     ...payload,
     review: { objectiveReviews, cycleSummary, learningToPreserve, nextDirection, reviewedAt: new Date().toISOString() },

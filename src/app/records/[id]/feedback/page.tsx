@@ -67,8 +67,17 @@ async function saveFeedbackClosing(formData: FormData) {
   const mainAgreement = String(formData.get('mainAgreement') ?? '').trim();
   const managerCommitment = String(formData.get('managerCommitment') ?? '').trim();
   const futureDirection = String(formData.get('futureDirection') ?? '').trim() || existingPayload.expectedDirection || existingPayload.futureDirection || '';
-  const autoRecord = buildFeedbackEssentialRecord(existingPayload, response, conversationAdjustment);
   const essentialRecordOverride = String(formData.get('essentialRecordOverride') ?? '').trim();
+  const closingPayload = {
+    ...existingPayload,
+    conversationAdjustment,
+    mainAgreement,
+    managerCommitment,
+    nextMoves: mainAgreement,
+    futureDirection,
+    essentialRecordManuallyAdjusted: false,
+  };
+  const autoRecord = buildFeedbackEssentialRecord(closingPayload, response);
   const essentialRecord = essentialRecordOverride || autoRecord;
   if (!essentialRecord) redirect(`/records/${recordId}/feedback?closing=required`);
 
@@ -79,12 +88,7 @@ async function saveFeedbackClosing(formData: FormData) {
     && Boolean(existingPayload.competenciesValues);
 
   const payload = {
-    ...existingPayload,
-    conversationAdjustment,
-    mainAgreement,
-    managerCommitment,
-    nextMoves: mainAgreement || existingPayload.nextMoves || '',
-    futureDirection,
+    ...closingPayload,
     essentialRecord,
     essentialRecordManuallyAdjusted: Boolean(essentialRecordOverride),
     participantPerspectiveUsed: Boolean(submitted),
@@ -197,7 +201,7 @@ export default async function FeedbackManagerPage({ params, searchParams }: {
                   <div className="field"><label htmlFor="managerCommitment">Apoio do gestor <span className="muted">(opcional)</span></label><textarea id="managerCommitment" name="managerCommitment" rows={3} defaultValue={payload.managerCommitment || ''} /></div>
                   <div className="field"><label htmlFor="futureDirection">Direção futura <span className="muted">(opcional)</span></label><textarea id="futureDirection" name="futureDirection" rows={3} defaultValue={payload.futureDirection || payload.expectedDirection || ''} /></div>
                 </div>
-                <details className="competencyAccordion"><summary className="competencySummary"><span><strong>Ajustar registro essencial</strong><small>Opcional. Deixe em branco para usar o texto automático abaixo.</small></span><span className="competencyChevron" aria-hidden="true">⌄</span></summary><div className="competencyAccordionBody field"><textarea name="essentialRecordOverride" rows={5} placeholder="Só use se precisar corrigir ou condensar o texto automático." /></div></details>
+                <details className="competencyAccordion"><summary className="competencySummary"><span><strong>Ajustar registro essencial</strong><small>Opcional. Deixe em branco para usar o texto automático abaixo.</small></span><span className="competencyChevron" aria-hidden="true">⌄</span></summary><div className="competencyAccordionBody field"><textarea name="essentialRecordOverride" rows={5} defaultValue={payload.essentialRecordManuallyAdjusted ? payload.essentialRecord : ''} placeholder="Só use se precisar corrigir ou condensar o texto automático." /></div></details>
                 <div><button className="button buttonSecondary" type="submit">Registrar conversa e gerar resumo</button></div>
               </form>
             )}

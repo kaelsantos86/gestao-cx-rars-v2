@@ -53,7 +53,13 @@ export function CompetencyFinalReviewCard({
       : '',
     [band, competencyLabel, evidence, nextStep, numericScore],
   );
-  const [manualComment, setManualComment] = useState(initial.officialComment ?? '');
+  const [manualComment, setManualComment] = useState(() => {
+    const initialComment = initial.officialComment?.trim() ?? '';
+    const initialAutomaticComment = typeof initial.score === 'number'
+      ? buildAutomaticOfficialComment(competencyLabel, initial.score, initial.evidence ?? '', initial.nextStep ?? '')
+      : '';
+    return initialComment === initialAutomaticComment ? '' : initialComment;
+  });
   const officialComment = manualComment.trim() || generatedComment;
 
   return (
@@ -108,7 +114,6 @@ export function CompetencyFinalReviewCard({
               value={evidence}
               onChange={(event) => {
                 setEvidence(event.target.value);
-                if (!initial.officialComment) setManualComment('');
               }}
               required
             />
@@ -137,7 +142,7 @@ export function CompetencyFinalReviewCard({
               <button
                 className="button buttonSecondary"
                 type="button"
-                onClick={() => setManualComment(generatedComment)}
+                onClick={() => setManualComment('')}
                 disabled={!generatedComment}
               >
                 Gerar novamente

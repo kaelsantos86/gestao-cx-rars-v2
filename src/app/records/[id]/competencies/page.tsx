@@ -112,7 +112,7 @@ async function finalizeCompetencies(formData: FormData) {
   ]);
   if (recordError) throw recordError;
   if (responseError) throw responseError;
-  if (record.status === 'completed') redirect(`/records/${recordId}/competencies`);
+  if (['completed', 'archived', 'cancelled'].includes(String(record.status))) redirect(`/records/${recordId}/competencies`);
 
   const skipSelfAssessment = formData.get('skipSelfAssessment') === 'on';
   if (!submittedResponse && !skipSelfAssessment) {
@@ -240,7 +240,7 @@ export default async function CompetencyManagerPage({
   const participantOverview = (response.overview ?? {}) as Record<string, string>;
   const participantSubmitted = Boolean(record.latestResponse?.is_submitted);
   const participantPath = query.invite ? `/participate/competencies/${query.invite}` : null;
-  const completed = record.status === 'completed';
+  const completed = ['completed', 'archived'].includes(record.status);
   const roleLabel = competencyRoleProfiles.find((item) => item.value === payload.roleProfile)?.label ?? payload.roleProfile;
   const momentLabel = competencyMoments.find((item) => item.value === payload.momentInRole)?.label ?? payload.momentInRole;
   const conversationGuide = buildCompetencyConversationGuide(payload, response, record.employee.display_name);

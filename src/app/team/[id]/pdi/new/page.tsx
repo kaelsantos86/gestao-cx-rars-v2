@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { requireManager } from '@/lib/auth';
 import { getEmployee } from '@/lib/data/team';
+import { buildPdiSourceContext } from '@/lib/workflow-automation';
 import {
   defaultPdiCycleLabel,
   pdiContextFields,
@@ -13,15 +14,6 @@ import {
   PdiPrioritiesSection,
   PdiPrivateNotesSection,
 } from '@/components/pdi-creation-sections';
-
-function sourceLabel(moduleType: string, cycleLabel: string | null) {
-  const labels: Record<string, string> = {
-    ninety_days: 'Avaliação de 90 dias',
-    competencies: 'Competências',
-    pdi: 'PDI anterior',
-  };
-  return cycleLabel || labels[moduleType] || moduleType;
-}
 
 function readPriority(formData: FormData, index: number) {
   const fields = {
@@ -66,7 +58,7 @@ async function createPdi(formData: FormData) {
 
   const { data: sourceCandidates, error: sourceError } = await auth.supabase
     .from('module_records')
-    .select('id, module_type, status, cycle_label, completed_at, payload')
+    .select('id, module_type, status, cycle_label, completed_at, created_at, payload')
     .eq('employee_id', employeeId)
     .eq('manager_id', auth.user.id)
     .is('deleted_at', null)
@@ -105,6 +97,7 @@ async function createPdi(formData: FormData) {
   if (!cycleLabel || !pdiCycleTypes.some((item) => item.value === cycleType)) throw new Error('invalid_pdi_cycle');
 
   const previousPdi = sources.find((source) => source.module_type === 'pdi') ?? null;
+  const sourceContext = buildPdiSourceContext(sources);
   const payload = {
     cycleType,
     cycleLabel,
@@ -112,6 +105,7 @@ async function createPdi(formData: FormData) {
     ninetyDaysConfirmedWithoutV2Record: needsNinetyDays && !hasCompletedNinetyDays && ninetyDaysConfirmed,
     ...context,
     priorities,
+    managerCommitment: sourceContext.managerSupport,
     sourceRecordIds: sources.map((source) => source.id),
     previousPdiId: previousPdi?.id ?? null,
   };
@@ -172,7 +166,7 @@ export default async function NewPdiPage({
   if (!auth) redirect('/login');
   const { data: sources, error } = await auth.supabase
     .from('module_records')
-    .select('id, module_type, status, cycle_label, completed_at')
+    .select('id, module_type, status, cycle_label, completed_at, created_at, payload')
     .eq('employee_id', id)
     .eq('manager_id', auth.user.id)
     .is('deleted_at', null)
@@ -184,6 +178,7 @@ export default async function NewPdiPage({
     if (source.module_type === 'ninety_days' || source.module_type === 'competencies') return source.status === 'completed';
     return source.module_type === 'pdi' && ['completed', 'archived'].includes(String(source.status));
   });
+  const sourceContext = buildPdiSourceContext(eligibleSources);
 
   const suggestedType = employee.professionalMoment === 'consolidation'
     ? 'role_consolidation'
@@ -221,10 +216,10 @@ export default async function NewPdiPage({
           </div>
 
           <div className="grid" style={{ gap: 10, marginTop: 16 }}>
-            {eligibleSources.length > 0 ? eligibleSources.slice(0, 6).map((source) => (
+            {sourceContext.sources.length > 0 ? sourceContext.sources.map((source) => (
               <div className="workspaceMiniCard" key={source.id}>
-                <strong>{sourceLabel(String(source.module_type), source.cycle_label)}</strong>
-                <span className="muted">Fonte real disponível na trajetória.</span>
+                <strong>{source.label}</strong>
+                <p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{source.summary || 'Fonte concluída disponível na trajetória.'}</p>
               </div>
             )) : (
               <div className="notice">Ainda não há fonte concluída na V2 para este PDI. Use somente contexto profissional real e, quando aplicável, confirme a devolutiva de 90 dias já realizada fora da V2.</div>
@@ -237,7 +232,11 @@ export default async function NewPdiPage({
           </label>
         </section>
 
-        <PdiDirectionSection />
+        <PdiDirectionSection defaultValues={{
+          strengthsToPreserve: sourceContext.strengthsToPreserve,
+          developmentDirection: sourceContext.developmentDirection,
+          sourceReadings: sourceContext.sourceReadings,
+        }} />
         <PdiPrioritiesSection />
         <PdiPrivateNotesSection />
 
