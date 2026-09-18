@@ -158,8 +158,6 @@ async function finalizeCompetencies(formData: FormData) {
     .find(({ assessment }) => Boolean(assessment.nextStep?.trim()));
   const participantPayload = (submittedResponse?.response_payload ?? {}) as Record<string, any>;
   const participantOverview = (participantPayload.overview ?? {}) as Record<string, string>;
-  const participantCompetencies = (participantPayload.competencies ?? {}) as Record<string, { band?: string; evidence?: string }>;
-
   let developmentPriority = '';
   if (explicitDevelopment) {
     developmentPriority = `${explicitDevelopment.competency.label}: ${explicitDevelopment.assessment.nextStep}`;
