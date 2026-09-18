@@ -12,7 +12,7 @@ import {
   recognitionModeLabel,
   recognitionPreparationFields,
 } from '@/lib/feedback';
-import { buildFeedbackEssentialRecord } from '@/lib/workflow-automation';
+import { buildFeedbackConversationGuide, buildFeedbackEssentialRecord } from '@/lib/workflow-automation';
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -68,7 +68,8 @@ async function saveFeedbackClosing(formData: FormData) {
   const managerCommitment = String(formData.get('managerCommitment') ?? '').trim();
   const futureDirection = String(formData.get('futureDirection') ?? '').trim() || existingPayload.expectedDirection || existingPayload.futureDirection || '';
   const autoRecord = buildFeedbackEssentialRecord(existingPayload, response, conversationAdjustment);
-  const essentialRecord = String(formData.get('essentialRecordOverride') ?? '').trim() || autoRecord;
+  const essentialRecordOverride = String(formData.get('essentialRecordOverride') ?? '').trim();
+  const essentialRecord = essentialRecordOverride || autoRecord;
   if (!essentialRecord) redirect(`/records/${recordId}/feedback?closing=required`);
 
   const recognitionEvidenceReady = existingPayload.feedbackFlow === 'recognition'
@@ -85,6 +86,7 @@ async function saveFeedbackClosing(formData: FormData) {
     nextMoves: mainAgreement || existingPayload.nextMoves || '',
     futureDirection,
     essentialRecord,
+    essentialRecordManuallyAdjusted: Boolean(essentialRecordOverride),
     participantPerspectiveUsed: Boolean(submitted),
     participantPerspectiveSkipped: !submitted,
     recognitionEvidenceReady,
@@ -132,6 +134,8 @@ export default async function FeedbackManagerPage({ params, searchParams }: {
   const recognitionMode = String(payload.recognitionMode ?? 'recognition');
   const preparationFields = flow === 'orientation' ? orientationPreparationFields : recognitionPreparationFields;
   const autoRecord = buildFeedbackEssentialRecord(payload, response, payload.conversationAdjustment);
+  const conversationGuide = buildFeedbackConversationGuide(payload, response, record.employee.display_name);
+  const displayedRecord = payload.essentialRecordManuallyAdjusted ? payload.essentialRecord : autoRecord;
 
   return (
     <main className="page">
@@ -165,8 +169,23 @@ export default async function FeedbackManagerPage({ params, searchParams }: {
           </div>
         </details>
 
+        {!readOnly && (
+          <details className="workspaceAccordion" open={participantSubmitted}>
+            <summary className="workspaceSummary"><span><strong>3. Orientação da conversa · Gestor</strong><small>Use fatos, perspectiva e intenção para conduzir a conversa.</small></span><span className="badge">Roteiro</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
+            <div className="workspaceBody">
+              <div className="notice" style={{ marginBottom: 14 }}><strong>Objetivo da conversa</strong><p className="muted" style={{ marginBottom: 0 }}>{conversationGuide.objective}</p></div>
+              <div className="grid grid2">
+                <article className="workspaceMiniCard"><strong>Pontos para reconhecer ou contextualizar</strong>{conversationGuide.recognition.length ? <ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.recognition.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul> : <p className="muted">Use os fatos já registrados na preparação.</p>}</article>
+                <article className="workspaceMiniCard"><strong>Perguntas-chave</strong>{conversationGuide.questions.length ? <ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.questions.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul> : <p className="muted">Escute a perspectiva antes de consolidar a direção.</p>}</article>
+                <article className="workspaceMiniCard"><strong>Direcionamento</strong><ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.managerDirections.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul></article>
+                <article className="workspaceMiniCard"><strong>Cuidados de condução</strong><ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.watchouts.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul></article>
+              </div>
+            </div>
+          </details>
+        )}
+
         <details className="workspaceAccordion" open={!readOnly && (participantSubmitted || record.status === 'in_conversation')}>
-          <summary className="workspaceSummary"><span><strong>3. Conversa e fechamento</strong><small>Registre somente o que a conversa acrescentou; o resumo é automático.</small></span><span className={`badge ${payload.closingSavedAt ? 'badgeAccent' : ''}`}>{payload.closingSavedAt ? 'Salvo' : 'Pendente'}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
+          <summary className="workspaceSummary"><span><strong>4. Conversa e fechamento</strong><small>Registre somente o que a conversa acrescentou; o resumo é automático.</small></span><span className={`badge ${payload.closingSavedAt ? 'badgeAccent' : ''}`}>{payload.closingSavedAt ? 'Salvo' : 'Pendente'}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
           <div className="workspaceBody">
             {!readOnly && (
               <form action={saveFeedbackClosing} className="grid" style={{ gap: 16 }}>
@@ -182,7 +201,7 @@ export default async function FeedbackManagerPage({ params, searchParams }: {
                 <div><button className="button buttonSecondary" type="submit">Registrar conversa e gerar resumo</button></div>
               </form>
             )}
-            {(payload.essentialRecord || autoRecord) && <div className="notice" style={{ marginTop: 14 }}><strong>Registro essencial automático</strong><p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{payload.essentialRecord || autoRecord}</p></div>}
+            {displayedRecord && <div className="notice" style={{ marginTop: 14 }}><strong>Síntese final do feedback</strong><p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{displayedRecord}</p></div>}
           </div>
         </details>
       </div>
