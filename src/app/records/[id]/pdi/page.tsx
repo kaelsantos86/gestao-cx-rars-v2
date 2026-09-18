@@ -12,7 +12,7 @@ import {
   pdiReviewStatuses,
   relatedCompetencies,
 } from '@/lib/pdi';
-import { buildPdiAgreementSummary, buildPdiReviewSummary } from '@/lib/workflow-automation';
+import { buildPdiAgreementSummary, buildPdiConversationGuide, buildPdiFinalSummary, buildPdiReviewSummary } from '@/lib/workflow-automation';
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -96,7 +96,14 @@ async function savePdiAgreements(formData: FormData) {
     || participantOverview.ownCommitment || existingPayload.collaboratorCommitment || '';
   const managerCommitment = String(formData.get('managerCommitment') ?? '').trim() || existingPayload.managerCommitment || '';
   const autonomyAgreement = priorities.map((item: any) => item.autonomy).filter(Boolean).join(' | ');
-  const conversationSummary = buildPdiAgreementSummary({ ...existingPayload, priorities }, participantResponse, conversationAdjustment);
+  const conversationSummary = buildPdiAgreementSummary({
+    ...existingPayload,
+    priorities,
+    collaboratorCommitment,
+    managerCommitment,
+    autonomyAgreement,
+    formalReviewDate,
+  }, participantResponse, conversationAdjustment);
 
   const payload = {
     ...existingPayload,
@@ -201,6 +208,8 @@ export default async function PdiManagerPage({ params, searchParams }: {
   const review = (payload.review ?? {}) as Record<string, any>;
   const objectiveReviews = Array.isArray(review.objectiveReviews) ? review.objectiveReviews : [];
   const agreementPreview = buildPdiAgreementSummary(payload, response, payload.conversationAdjustment);
+  const conversationGuide = buildPdiConversationGuide(payload, response, record.employee.display_name);
+  const finalSummaryPreview = buildPdiFinalSummary(payload, response);
 
   return (
     <main className="page">
@@ -267,8 +276,23 @@ export default async function PdiManagerPage({ params, searchParams }: {
           </div>
         </details>
 
+        {canBuild && (
+          <details className="workspaceAccordion" open={participantSubmitted}>
+            <summary className="workspaceSummary"><span><strong>4. Orientação da conversa · Gestor</strong><small>Transforme o plano em poucas prioridades praticáveis.</small></span><span className="badge">Roteiro</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
+            <div className="workspaceBody">
+              <div className="notice" style={{ marginBottom: 14 }}><strong>Objetivo da conversa</strong><p className="muted" style={{ marginBottom: 0 }}>{conversationGuide.objective}</p></div>
+              <div className="grid grid2">
+                <article className="workspaceMiniCard"><strong>Reconhecer e preservar</strong>{conversationGuide.recognition.length ? <ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.recognition.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul> : <p className="muted">Use as fortalezas e o momento profissional já registrados.</p>}</article>
+                <article className="workspaceMiniCard"><strong>Perguntas-chave</strong>{conversationGuide.questions.length ? <ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.questions.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul> : <p className="muted">Valide prioridade, prática, evidência e autonomia diretamente na conversa.</p>}</article>
+                <article className="workspaceMiniCard"><strong>Direcionamento</strong><ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.managerDirections.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul></article>
+                <article className="workspaceMiniCard"><strong>Cuidados de condução</strong><ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.watchouts.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul></article>
+              </div>
+            </div>
+          </details>
+        )}
+
         <details className="workspaceAccordion" open={Boolean(query.agreement || query.perspective || record.status === 'in_conversation')}>
-          <summary className="workspaceSummary"><span><strong>4. Acordos e ativação</strong><small>Confirme apenas o que precisa mudar; o restante já vem do plano.</small></span><span className={`badge ${payload.agreementSavedAt ? 'badgeAccent' : ''}`}>{payload.agreementSavedAt ? 'Acordos salvos' : 'Pendente'}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
+          <summary className="workspaceSummary"><span><strong>5. Acordos e ativação</strong><small>Confirme apenas o que precisa mudar; o restante já vem do plano.</small></span><span className={`badge ${payload.agreementSavedAt ? 'badgeAccent' : ''}`}>{payload.agreementSavedAt ? 'Acordos salvos' : 'Pendente'}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
           <div className="workspaceBody">
             {canBuild && !readOnly ? (
               <form action={savePdiAgreements} className="grid" style={{ gap: 14 }}>
@@ -308,13 +332,13 @@ export default async function PdiManagerPage({ params, searchParams }: {
             ) : (
               <div className="grid grid2"><div><strong>Compromisso do colaborador</strong><p className="muted">{payload.collaboratorCommitment || '—'}</p></div><div><strong>Compromisso do gestor</strong><p className="muted">{payload.managerCommitment || '—'}</p></div><div><strong>Revisão formal</strong><p className="muted">{payload.formalReviewDate || '—'}</p></div></div>
             )}
-            {(payload.conversationSummary || agreementPreview) && <div className="notice" style={{ marginTop: 14 }}><strong>Síntese automática do plano</strong><p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{payload.conversationSummary || agreementPreview}</p></div>}
+            {agreementPreview && <div className="notice" style={{ marginTop: 14 }}><strong>Síntese final do plano</strong><p className="muted" style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{agreementPreview}</p></div>}
           </div>
         </details>
 
         {(canReview || record.status === 'completed') && (
           <details className="workspaceAccordion" open={Boolean(query.review || record.status === 'in_review')}>
-            <summary className="workspaceSummary"><span><strong>5. Revisão do ciclo</strong><small>Reavalie cada prioridade com status + evidência; a síntese é automática.</small></span><span className={`badge ${payload.reviewSavedAt ? 'badgeAccent' : ''}`}>{payload.reviewSavedAt ? 'Revisão registrada' : 'Quando chegar a data'}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
+            <summary className="workspaceSummary"><span><strong>6. Revisão do ciclo</strong><small>Reavalie cada prioridade com status + evidência; a síntese é automática.</small></span><span className={`badge ${payload.reviewSavedAt ? 'badgeAccent' : ''}`}>{payload.reviewSavedAt ? 'Revisão registrada' : 'Quando chegar a data'}</span><span className="competencyChevron" aria-hidden="true">⌄</span></summary>
             <div className="workspaceBody">
               {canReview ? (
                 <form action={savePdiReview} className="grid" style={{ gap: 14 }}>
@@ -327,7 +351,7 @@ export default async function PdiManagerPage({ params, searchParams }: {
                   <div><button className="button buttonSecondary" type="submit">Salvar revisão e gerar síntese</button></div>
                 </form>
               ) : (
-                <div className="grid grid2"><div><strong>Síntese do ciclo</strong><p className="muted" style={{ whiteSpace: 'pre-wrap' }}>{review.cycleSummary || '—'}</p></div><div><strong>Aprendizado a preservar</strong><p className="muted">{review.learningToPreserve || '—'}</p></div><div><strong>Direção seguinte</strong><p className="muted">{review.nextDirection || '—'}</p></div></div>
+                <div className="grid grid2"><div style={{ gridColumn: '1 / -1' }}><strong>Síntese final do ciclo</strong><p className="muted" style={{ whiteSpace: 'pre-wrap' }}>{finalSummaryPreview || '—'}</p></div><div><strong>Aprendizado a preservar</strong><p className="muted">{review.learningToPreserve || '—'}</p></div><div><strong>Direção seguinte</strong><p className="muted">{review.nextDirection || '—'}</p></div></div>
               )}
             </div>
           </details>
