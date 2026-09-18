@@ -302,6 +302,9 @@ export function buildPdiFinalSummary(payloadInput: unknown, responseInput?: unkn
 
 export function buildFeedbackFinalSummary(payloadInput: unknown, responseInput?: unknown) {
   const payload = (payloadInput ?? {}) as JsonObject;
+  if (payload.essentialRecordManuallyAdjusted && text(payload.essentialRecord)) {
+    return text(payload.essentialRecord);
+  }
   const flow = text(payload.feedbackFlow);
   const adjustment = text(payload.conversationAdjustment);
   const agreement = text(payload.mainAgreement || payload.nextMoves);
