@@ -14,6 +14,7 @@ import {
   competencyRoleProfiles,
   scoreText,
 } from '@/lib/competencies';
+import { buildCompetencyConversationGuide, buildCompetencyFinalSummary } from '@/lib/workflow-automation';
 
 function normalizeScore(value: FormDataEntryValue | null) {
   return Number(String(value ?? '').replace(',', '.'));
@@ -171,42 +172,19 @@ async function finalizeCompetencies(formData: FormData) {
     }
   }
 
-  const differingCompetencies = competencies
-    .filter((competency) => {
-      const participantBand = participantCompetencies[competency.key]?.band;
-      return participantBand && participantBand !== finalAssessments[competency.key].band;
-    })
-    .map((competency) => competency.label);
-
-  const resultLine = competencies
-    .map((competency) => `${competency.label} ${scoreText(finalAssessments[competency.key].score)}`)
-    .join('; ');
-
   const conversationAdjustment = String(formData.get('conversationAdjustment') ?? '').trim();
   const nextCycleAgreement = String(formData.get('nextCycleAgreement') ?? '').trim();
   const managerSupport = String(formData.get('managerSupport') ?? '').trim();
   const returnDate = String(formData.get('returnDate') ?? '').trim();
 
-  const summaryParts = [
-    `Resultado do ciclo: ${resultLine}.`,
-    differingCompetencies.length
-      ? `Diferenças de percepção exploradas em: ${differingCompetencies.join(', ')}.`
-      : submittedResponse
-        ? 'As faixas da autoavaliação convergiram com a leitura final do gestor.'
-        : '',
-    developmentPriority ? `Prioridade de desenvolvimento: ${developmentPriority}.` : '',
-    conversationAdjustment,
-  ].filter(Boolean);
-
   const now = new Date().toISOString();
   const existingPayload = (record.payload ?? {}) as Record<string, any>;
-  const payload = {
+  const payloadBase = {
     ...existingPayload,
     finalAssessments,
     strengthSummary,
     recognizedStrengths: strengthSummary,
     developmentPriority,
-    competencySummary: summaryParts.join(' '),
     conversationAdjustment,
     employeeAgreements: nextCycleAgreement,
     managerSupport,
@@ -215,7 +193,11 @@ async function finalizeCompetencies(formData: FormData) {
     selfAssessmentUsed: Boolean(submittedResponse),
     selfAssessmentSkipped: !submittedResponse,
     consolidationSavedAt: now,
-    competencyUxVersion: 2,
+    competencyUxVersion: 3,
+  };
+  const payload = {
+    ...payloadBase,
+    competencySummary: buildCompetencyFinalSummary(payloadBase),
   };
 
   const { error: updateError } = await auth.supabase
@@ -263,6 +245,8 @@ export default async function CompetencyManagerPage({
   const completed = record.status === 'completed';
   const roleLabel = competencyRoleProfiles.find((item) => item.value === payload.roleProfile)?.label ?? payload.roleProfile;
   const momentLabel = competencyMoments.find((item) => item.value === payload.momentInRole)?.label ?? payload.momentInRole;
+  const conversationGuide = buildCompetencyConversationGuide(payload, response, record.employee.display_name);
+  const summaryPreview = buildCompetencyFinalSummary(payload);
 
   return (
     <main className="page">
@@ -368,15 +352,49 @@ export default async function CompetencyManagerPage({
           </details>
         )}
 
+        {!completed && (
+          <details className="workspaceAccordion" open={participantSubmitted}>
+            <summary className="workspaceSummary">
+              <span><strong>4. Orientação da conversa · Gestor</strong><small>Convergências, diferenças e foco para o próximo ciclo.</small></span>
+              <span className="badge">Roteiro</span>
+              <span className="competencyChevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div className="workspaceBody">
+              <div className="notice" style={{ marginBottom: 14 }}>
+                <strong>Objetivo da conversa</strong>
+                <p className="muted" style={{ marginBottom: 0 }}>{conversationGuide.objective}</p>
+              </div>
+              <div className="grid grid2">
+                <article className="workspaceMiniCard">
+                  <strong>Reconhecer</strong>
+                  {conversationGuide.recognition.length ? <ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.recognition.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul> : <p className="muted">Use as evidências mais fortes já registradas.</p>}
+                </article>
+                <article className="workspaceMiniCard">
+                  <strong>Perguntas-chave</strong>
+                  {conversationGuide.questions.length ? <ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.questions.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul> : <p className="muted">Não há divergências relevantes; valide exemplos e escolha o foco de evolução.</p>}
+                </article>
+                <article className="workspaceMiniCard">
+                  <strong>Direcionamento</strong>
+                  <ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.managerDirections.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul>
+                </article>
+                <article className="workspaceMiniCard">
+                  <strong>Cuidados de condução</strong>
+                  <ul style={{ marginBottom: 0, paddingLeft: 20 }}>{conversationGuide.watchouts.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}</ul>
+                </article>
+              </div>
+            </div>
+          </details>
+        )}
+
         {completed ? (
           <details className="workspaceAccordion" open>
             <summary className="workspaceSummary">
-              <span><strong>4. Fechamento</strong><small>Síntese produzida pela avaliação concluída.</small></span>
+              <span><strong>5. Fechamento</strong><small>Síntese produzida pela avaliação concluída.</small></span>
               <span className="badge badgeAccent">Concluída</span>
               <span className="competencyChevron" aria-hidden="true">⌄</span>
             </summary>
             <div className="workspaceBody">
-              <p className="muted">{payload.competencySummary || 'Avaliação concluída. Consulte o resumo para registro oficial ao final da página.'}</p>
+              <p className="muted">{summaryPreview || 'Avaliação concluída. Consulte o resumo para registro oficial ao final da página.'}</p>
               {payload.strengthSummary && <p className="muted"><strong>Forças:</strong> {payload.strengthSummary}</p>}
               {payload.developmentPriority && <p className="muted"><strong>Prioridade:</strong> {payload.developmentPriority}</p>}
               {payload.employeeAgreements && <p className="muted"><strong>Acordo do próximo ciclo:</strong> {payload.employeeAgreements}</p>}
@@ -384,7 +402,7 @@ export default async function CompetencyManagerPage({
           </details>
         ) : (
           <section className="card">
-            <p className="eyebrow">4. Fechamento rápido</p>
+            <p className="eyebrow">5. Fechamento rápido</p>
             <h2>Revisar, conversar e concluir</h2>
             <p className="muted">As notas e comentários abaixo já vêm preenchidos com sua leitura inicial. Abra somente a competência que precisar ajustar após a conversa. O resumo final será montado automaticamente.</p>
 
