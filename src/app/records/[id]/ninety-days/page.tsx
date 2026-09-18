@@ -10,7 +10,7 @@ import {
   ninetyDayManagerPreparationFields,
   ninetyDayReflectionQuestions,
 } from '@/lib/ninety-days';
-import { buildNinetyDaySummary } from '@/lib/workflow-automation';
+import { buildNinetyDayConversationGuide, buildNinetyDaySummary } from '@/lib/workflow-automation';
 
 async function generateParticipantLink(formData: FormData) {
   'use server';
@@ -202,6 +202,11 @@ export default async function NinetyDayManagerPage({
     payload.conversationAdjustment,
     payload.mainAgreement,
   );
+  const conversationGuide = buildNinetyDayConversationGuide(
+    payload,
+    response,
+    record.employee.display_name,
+  );
 
   return (
     <main className="page">
@@ -273,6 +278,67 @@ export default async function NinetyDayManagerPage({
             </div>
           ) : <p className="muted">Nenhuma autoavaliação recebida ainda.</p>}
         </article>
+      </section>
+
+      <section className="card" style={{ marginTop: 18 }}>
+        <p className="eyebrow">Orientação da conversa · Gestor</p>
+        <h2>Roteiro sugerido a partir desta avaliação</h2>
+        <p className="muted">
+          O roteiro cruza sua leitura, a autoavaliação, diferenças de percepção e respostas abertas. A lente do Chat Matriz orienta somente a condução da conversa; não altera nota, evidência ou conclusão.
+        </p>
+
+        <div className="notice" style={{ marginBottom: 16 }}>
+          <strong>Objetivo da conversa</strong>
+          <p className="muted" style={{ marginBottom: 0 }}>{conversationGuide.objective}</p>
+        </div>
+
+        <div className="grid grid2">
+          <article className="workspaceMiniCard">
+            <strong>1. Comece reconhecendo</strong>
+            {conversationGuide.recognition.length > 0 ? (
+              <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+                {conversationGuide.recognition.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}
+              </ul>
+            ) : <p className="muted">Use os avanços e fortalezas já registrados para abrir a conversa com fatos.</p>}
+          </article>
+
+          <article className="workspaceMiniCard">
+            <strong>2. Perguntas-chave</strong>
+            {conversationGuide.questions.length > 0 ? (
+              <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+                {conversationGuide.questions.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}
+              </ul>
+            ) : <p className="muted">Não há divergências relevantes registradas. Explore exemplos concretos de avanço e próximos desafios.</p>}
+          </article>
+
+          <article className="workspaceMiniCard">
+            <strong>3. Direcionamento do gestor</strong>
+            {conversationGuide.managerDirections.length > 0 ? (
+              <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+                {conversationGuide.managerDirections.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}
+              </ul>
+            ) : <p className="muted">Concentre a direção no próximo nível de autonomia, contribuição e impacto esperado para o papel.</p>}
+          </article>
+
+          <article className="workspaceMiniCard">
+            <strong>4. Cuidados de condução</strong>
+            <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+              {conversationGuide.watchouts.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}
+            </ul>
+          </article>
+        </div>
+
+        <details className="workspaceAccordion" style={{ marginTop: 14 }}>
+          <summary className="workspaceSummary">
+            <span><strong>Fechamento sugerido</strong><small>Saia com poucos acordos e direção clara.</small></span>
+            <span className="competencyChevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div className="workspaceBody">
+            <ol style={{ margin: 0, paddingLeft: 22 }}>
+              {conversationGuide.closing.map((item, index) => <li key={index} className="muted" style={{ marginTop: 8 }}>{item}</li>)}
+            </ol>
+          </div>
+        </details>
       </section>
 
       {!completed && (
