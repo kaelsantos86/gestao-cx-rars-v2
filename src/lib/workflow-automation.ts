@@ -146,3 +146,150 @@ export function buildTalentExecutiveDraft(sourceSnapshotInput: unknown) {
     indicator3: '',
   };
 }
+
+
+const ninetyDayDimensionLabels: Record<string, string> = {
+  roleClarity: 'clareza do papel',
+  deliveryQuality: 'entregas e qualidade',
+  autonomyProtagonism: 'autonomia e protagonismo',
+  integrationCollaboration: 'integração e colaboração',
+  conditionsSupport: 'condições e apoio',
+};
+
+function excerpt(value: unknown, max = 190) {
+  const normalized = text(value).replace(/\s+/g, ' ');
+  if (!normalized) return '';
+  return normalized.length <= max ? normalized : `${normalized.slice(0, max - 1).trim()}…`;
+}
+
+function managerConversationLens(employeeName?: string) {
+  const name = (employeeName ?? '').toLocaleLowerCase('pt-BR');
+
+  const directCompetitive = [
+    'Apresente sua leitura com clareza, mas abra espaço real para a pessoa expor a própria interpretação antes de fechar qualquer conclusão.',
+    'Se houver discordância, evite transformar a conversa em disputa de quem está certo; volte para fatos, exemplos e acordos observáveis.',
+    'Respeite franqueza e posicionamentos diretos. O objetivo é negociar um próximo movimento, não vencer a discussão.',
+  ];
+
+  if (name.includes('khaoan') || name.includes('cauan')) {
+    return [
+      ...directCompetitive,
+      'Use comunicação objetiva e estruturada. Deixe explícitos papel, área de influência, autonomia e em quais situações o gestor deve ser envolvido.',
+      'Conecte o desenvolvimento a responsabilidade real e espaço de decisão, evitando controle permanente ou microgestão.',
+    ];
+  }
+
+  if (name.includes('alisson') || name.includes('francieli') || name.includes('jessica') || name.includes('natyelle')) {
+    return directCompetitive;
+  }
+
+  if (name.includes('daniela') || name.includes('leandro')) {
+    return [
+      'Ouça a leitura da pessoa por inteiro antes de apresentar sua conclusão ou contraponto.',
+      'Prefira sugestões, perguntas e recomendações a ordens diretas quando estiver construindo o próximo movimento.',
+      'Mantenha a mensagem clara e segura sem endurecer o tom; valide ideias úteis antes de propor ajustes.',
+    ];
+  }
+
+  return [
+    'Comece pela escuta e use diferenças de percepção como perguntas, não como correções automáticas.',
+    'Mantenha a conversa ancorada em fatos, exemplos e próximos movimentos observáveis.',
+  ];
+}
+
+export function buildNinetyDayConversationGuide(
+  payloadInput: unknown,
+  responseInput: unknown,
+  employeeName?: string,
+) {
+  const payload = (payloadInput ?? {}) as JsonObject;
+  const response = (responseInput ?? {}) as JsonObject;
+  const reflections = (response.reflections ?? {}) as JsonObject;
+  const managerRatings = (payload.managerRatings ?? {}) as Record<string, number>;
+  const participantRatings = (response.ratings ?? {}) as Record<string, number>;
+
+  const recognition = unique([
+    text(payload.observableAdvances),
+    text(payload.strengths),
+    text(reflections.proudContribution),
+    text(reflections.advancesLearning),
+  ]).slice(0, 3);
+
+  const questions: string[] = [];
+  Object.entries(ninetyDayDimensionLabels).forEach(([key, label]) => {
+    const manager = Number(managerRatings[key] ?? 0);
+    const participant = Number(participantRatings[key] ?? 0);
+    if (!manager || !participant || manager === participant) return;
+
+    if (participant < manager) {
+      questions.push(
+        `Em ${label}, você se avaliou em ${participant} e minha leitura foi ${manager}. O que faz você se perceber abaixo da minha avaliação? Que exemplos sustentam essa leitura?`,
+      );
+    } else {
+      questions.push(
+        `Em ${label}, sua autoavaliação foi ${participant} e minha leitura foi ${manager}. Quais situações sustentam sua percepção? O que precisamos observar juntos para alinhar essa referência?`,
+      );
+    }
+  });
+
+  const obstacles = excerpt(reflections.obstaclesDependencies);
+  if (obstacles) {
+    questions.push(
+      `Aprofunde o ponto que você trouxe sobre obstáculos, dúvidas ou dependências: “${obstacles}”. Em que situação real isso mais aparece hoje e o que ajudaria a destravar?`,
+    );
+  }
+
+  const nextPriority = excerpt(reflections.nextCyclePriority);
+  if (nextPriority) {
+    questions.push(
+      `Você indicou como prioridade do próximo ciclo: “${nextPriority}”. O que seria uma evidência concreta de avanço nisso nas próximas semanas?`,
+    );
+  }
+
+  const support = excerpt(reflections.supportDifference);
+  if (support) {
+    questions.push(
+      `Você registrou que este apoio faria diferença: “${support}”. O que precisa vir do gestor e o que pode ficar sob sua autonomia?`,
+    );
+  }
+
+  const advances = excerpt(reflections.advancesLearning);
+  if (advances) {
+    questions.push(
+      `Do aprendizado que você descreveu — “${advances}” — o que já virou comportamento recorrente e o que ainda precisa ser consolidado?`,
+    );
+  }
+
+  const managerDirections = unique([
+    text(payload.developmentPriorities)
+      ? `Transforme o ponto de desenvolvimento em um movimento observável: ${text(payload.developmentPriorities)}`
+      : '',
+    text(payload.possibleRouteAdjustment)
+      ? `Teste o ajuste de rota já identificado: ${text(payload.possibleRouteAdjustment)}`
+      : '',
+    text(payload.strengths)
+      ? `Preserve as fortalezas reconhecidas enquanto amplia repertório: ${text(payload.strengths)}`
+      : '',
+  ]);
+
+  const development = excerpt(payload.developmentPriorities);
+  const objective = development
+    ? `Reconhecer a consolidação já demonstrada e sair da conversa com um acordo claro sobre o próximo avanço: ${development}`
+    : 'Reconhecer os avanços do ciclo, alinhar diferenças de percepção e sair com uma direção clara para o próximo período.';
+
+  const closing = [
+    'Confirmar a direção do ciclo: manter, ajustar, acelerar ou recalibrar.',
+    'Definir um acordo principal que possa ser observado no trabalho real, sem criar uma lista excessiva de tarefas.',
+    'Combinar somente o apoio do gestor que for realmente necessário e preservar o espaço de autonomia.',
+    'Registrar uma data de retomada apenas se houver motivo concreto para acompanhamento.',
+  ];
+
+  return {
+    objective,
+    recognition,
+    questions: questions.slice(0, 6),
+    managerDirections,
+    watchouts: managerConversationLens(employeeName),
+    closing,
+  };
+}
