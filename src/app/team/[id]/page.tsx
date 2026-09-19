@@ -9,8 +9,8 @@ import type { EmployeeSummary } from '@/lib/demo-data';
 const journey = [
   { key: 'marco_zero', label: 'Marco Zero' },
   { key: 'ninety_days', label: '90 dias' },
-  { key: 'competencies', label: 'Competências' },
   { key: 'pdi', label: 'PDI Evolutivo' },
+  { key: 'competencies', label: 'Competências' },
   { key: 'feedback', label: 'Feedback' },
   { key: 'talent', label: 'Talento' },
 ] as const;
@@ -33,7 +33,7 @@ function stepStatus(key: string, entryModule: string, timelineModules: Set<strin
   if (timelineModules.has(key)) return 'Com registro';
   if (key === 'feedback' || key === 'talent') return 'Quando aplicável';
 
-  const core = ['marco_zero', 'ninety_days', 'competencies', 'pdi'];
+  const core = ['marco_zero', 'ninety_days', 'pdi', 'competencies'];
   const keyIndex = core.indexOf(key);
   const entryIndex = core.indexOf(entryModule);
 
@@ -180,7 +180,9 @@ export default async function EmployeePage({
     || employee.openRecordModule === 'pdi'
     || employee.nextMilestone === 'Avaliação de 90 dias'
     || employee.nextMilestone === 'PDI Evolutivo';
-  const competencyActionVisible = employee.openRecordModule === 'competencies' || employee.nextMilestone === 'Competências';
+  const competencyAction = employee.openRecordModule === 'competencies' && employee.openRecordId
+    ? { href: `/records/${employee.openRecordId}/competencies`, label: 'Continuar Avaliação de Competências' }
+    : { href: `/team/${employee.id}/competencies/new`, label: 'Iniciar Avaliação de Competências' };
 
   return (
     <main className="page">
@@ -229,6 +231,34 @@ export default async function EmployeePage({
               <h2 style={{ marginBottom: 8 }}>{timeline.length} registro{timeline.length === 1 ? '' : 's'}</h2>
               <p className="muted">Ciclos, feedbacks e evidências permanecem ligados à mesma identidade ao longo do tempo.</p>
             </article>
+          </section>
+
+          <section className="card" style={{ marginTop: 18 }}>
+            <p className="eyebrow">Próximas ações disponíveis</p>
+            <h2 style={{ marginTop: 0 }}>Continue a jornada sem perder o contexto dos 90 dias</h2>
+            <p className="muted">O primeiro PDI é a continuidade principal. Competências permanece disponível para o ciclo semestral e Feedback para uma situação pontual que mereça registro.</p>
+            <div className="grid grid3" style={{ marginTop: 18 }}>
+              <article style={{ border: '1px solid var(--accent)', borderRadius: 14, padding: 16 }}>
+                <span className="badge badgeAccent">Próximo movimento</span>
+                <h3 style={{ marginBottom: 8 }}>PDI Evolutivo</h3>
+                <p className="muted">Transforme a avaliação concluída em prioridades e acordos de desenvolvimento.</p>
+                {action && developmentActionVisible
+                  ? <Link className="button" href={action.href}>{action.label}</Link>
+                  : <Link className="button" href={`/team/${employee.id}/pdi/new`}>Iniciar PDI Evolutivo</Link>}
+              </article>
+              <article style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 16 }}>
+                <span className="badge">Ciclo semestral</span>
+                <h3 style={{ marginBottom: 8 }}>Competências</h3>
+                <p className="muted">Use quando o ciclo semestral estiver aberto; o resultado poderá alimentar o PDI.</p>
+                <Link className="button buttonSecondary" href={competencyAction.href}>{competencyAction.label}</Link>
+              </article>
+              <article style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 16 }}>
+                <span className="badge">Quando aplicável</span>
+                <h3 style={{ marginBottom: 8 }}>Feedback</h3>
+                <p className="muted">Registre orientação, correção de rota, reconhecimento ou promoção quando houver um fato concreto.</p>
+                <Link className="button buttonSecondary" href={`/team/${employee.id}/feedback/new`}>Registrar Feedback</Link>
+              </article>
+            </div>
           </section>
 
           <section className="card" style={{ marginTop: 18 }}>
@@ -317,7 +347,7 @@ export default async function EmployeePage({
               <h2 style={{ margin: 0, fontSize: 27 }}>Histórico semestral</h2>
               <p className="muted" style={{ marginBottom: 0 }}>As sete competências oficiais permanecem organizadas por ciclo e preservadas na timeline.</p>
             </div>
-            {action && competencyActionVisible && <Link className="button" href={action.href}>{action.label}</Link>}
+            <Link className="button" href={competencyAction.href}>{competencyAction.label}</Link>
           </div>
           <TimelineList items={competencyRecords} emptyText="Ainda não há avaliação de competências registrada para este colaborador." />
         </section>

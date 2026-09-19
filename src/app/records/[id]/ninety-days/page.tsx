@@ -414,6 +414,34 @@ export default async function NinetyDayManagerPage({
           </button>
         </form>
       </section>
+
+      {completed && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <p className="eyebrow">Continuidade liberada</p>
+          <h2 style={{ marginTop: 0 }}>Escolha o próximo movimento</h2>
+          <p className="muted">O primeiro PDI é a continuidade recomendada após os 90 dias. Competências e Feedback também ficam disponíveis conforme o momento da conversa.</p>
+          <div className="grid grid3" style={{ marginTop: 18 }}>
+            <article style={{ border: '1px solid var(--accent)', borderRadius: 14, padding: 16 }}>
+              <span className="badge badgeAccent">Recomendado</span>
+              <h3 style={{ marginBottom: 8 }}>Construir primeiro PDI</h3>
+              <p className="muted">Use a avaliação concluída como fonte para definir prioridades, evidências e apoio do gestor.</p>
+              <Link className="button" href={`/team/${record.employee.id}/pdi/new`}>Iniciar PDI Evolutivo</Link>
+            </article>
+            <article style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 16 }}>
+              <span className="badge">Ciclo semestral</span>
+              <h3 style={{ marginBottom: 8 }}>Avaliar competências</h3>
+              <p className="muted">Inicie esta frente quando o ciclo semestral de competências estiver aberto.</p>
+              <Link className="button buttonSecondary" href={`/team/${record.employee.id}/competencies/new`}>Iniciar Competências</Link>
+            </article>
+            <article style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 16 }}>
+              <span className="badge">Quando aplicável</span>
+              <h3 style={{ marginBottom: 8 }}>Registrar feedback</h3>
+              <p className="muted">Use para uma situação pontual de orientação, reconhecimento ou promoção.</p>
+              <Link className="button buttonSecondary" href={`/team/${record.employee.id}/feedback/new`}>Registrar Feedback</Link>
+            </article>
+          </div>
+        </section>
+      )}
     </main>
   );
 }
