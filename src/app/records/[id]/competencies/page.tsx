@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CopyLink } from '@/components/copy-link';
+import { CopySummary } from '@/components/copy-summary';
 import { CompetencyFinalReviewCard } from '@/components/competency-final-review-card';
 import { requireManager } from '@/lib/auth';
 import { getCompetencyRecord } from '@/lib/data/records';
@@ -9,6 +10,7 @@ import {
   bandForScore,
   bandLabel,
   buildAutomaticOfficialComment,
+  buildCompetencyOfficialSummaries,
   competencies,
   competencyMoments,
   competencyRoleProfiles,
@@ -245,6 +247,7 @@ export default async function CompetencyManagerPage({
   const momentLabel = competencyMoments.find((item) => item.value === payload.momentInRole)?.label ?? payload.momentInRole;
   const conversationGuide = buildCompetencyConversationGuide(payload, response, record.employee.display_name);
   const summaryPreview = buildCompetencyFinalSummary(payload);
+  const officialCompetencySummaries = buildCompetencyOfficialSummaries(payload, response);
 
   return (
     <main className="page">
@@ -396,6 +399,22 @@ export default async function CompetencyManagerPage({
               {payload.strengthSummary && <p className="muted"><strong>Forças:</strong> {payload.strengthSummary}</p>}
               {payload.developmentPriority && <p className="muted"><strong>Prioridade:</strong> {payload.developmentPriority}</p>}
               {payload.employeeAgreements && <p className="muted"><strong>Acordo do próximo ciclo:</strong> {payload.employeeAgreements}</p>}
+
+              {officialCompetencySummaries.length > 0 && (
+                <div style={{ marginTop: 22 }}>
+                  <h3 style={{ marginBottom: 6 }}>Resumos individuais para a ferramenta oficial</h3>
+                  <p className="muted" style={{ marginTop: 0 }}>Cada texto combina a leitura final do gestor com a perspectiva registrada pelo colaborador, sem alterar as falas originais.</p>
+                  <div className="grid" style={{ gap: 12 }}>
+                    {officialCompetencySummaries.map((item) => (
+                      <article className="workspaceMiniCard" key={item.key}>
+                        <strong>{item.label}</strong>
+                        <p className="muted" style={{ whiteSpace: 'pre-wrap' }}>{item.summary}</p>
+                        <CopySummary text={item.summary} idleLabel={`Copiar resumo de ${item.label}`} />
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </details>
         ) : (

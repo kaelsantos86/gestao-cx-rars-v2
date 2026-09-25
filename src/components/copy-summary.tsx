@@ -64,7 +64,7 @@ async function writePlainText(value: string) {
   if (!copied) throw new Error('copy_failed');
 }
 
-export function CopySummary({ text }: { text: string }) {
+export function CopySummary({ text, idleLabel = 'Copiar resumo para registro oficial' }: { text: string; idleLabel?: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle');
 
   async function copy() {
@@ -83,7 +83,7 @@ export function CopySummary({ text }: { text: string }) {
         ? 'Resumo copiado em texto simples'
         : state === 'error'
           ? 'Não foi possível copiar · tente novamente'
-          : 'Copiar resumo para registro oficial'}
+          : idleLabel}
     </button>
   );
 }

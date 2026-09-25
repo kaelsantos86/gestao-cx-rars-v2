@@ -5,6 +5,7 @@ import {
   buildNinetyDaySummary,
   buildPdiFinalSummary,
 } from '@/lib/workflow-automation';
+import { buildCompetencyOfficialSummaries } from '@/lib/competencies';
 
 type JsonObject = Record<string, any>;
 
@@ -56,7 +57,12 @@ export function buildOfficialSummary(
   }
 
   if (moduleType === 'competencies') {
-    synthesis = buildCompetencyFinalSummary(payload);
+    const finalSummary = buildCompetencyFinalSummary(payload);
+    const competencySummaries = buildCompetencyOfficialSummaries(payload, response);
+    const detailedSummary = competencySummaries.length
+      ? `Resumos individuais por competência:\n\n${competencySummaries.map((item) => `${item.label}: ${item.summary}`).join('\n\n')}`
+      : '';
+    synthesis = [finalSummary, detailedSummary].filter(Boolean).join('\n\n');
   }
 
   if (moduleType === 'pdi') {

@@ -96,6 +96,59 @@ export function buildAutomaticOfficialComment(
   return parts.join(' ');
 }
 
+export type CompetencyOfficialSummary = {
+  key: string;
+  label: string;
+  summary: string;
+};
+
+export function buildCompetencyOfficialSummaries(
+  payloadInput: unknown,
+  responseInput?: unknown,
+): CompetencyOfficialSummary[] {
+  const payload = (payloadInput ?? {}) as Record<string, any>;
+  const response = (responseInput ?? {}) as Record<string, any>;
+  const assessments = (payload.finalAssessments ?? payload.initialAssessments ?? {}) as Record<string, any>;
+  const participantCompetencies = (response.competencies ?? {}) as Record<string, any>;
+
+  return competencies.flatMap((competency) => {
+    const assessment = (assessments[competency.key] ?? {}) as Record<string, any>;
+    const participant = (participantCompetencies[competency.key] ?? {}) as Record<string, any>;
+    const score = Number(assessment.score);
+    const managerBand = bandForScore(score) ?? String(assessment.band ?? '');
+    const participantBand = String(participant.band ?? '');
+    const evidence = String(assessment.evidence ?? '').trim();
+    const nextStep = String(assessment.nextStep ?? '').trim();
+    const managerComment = String(assessment.officialComment ?? '').trim()
+      || (Number.isFinite(score) ? buildAutomaticOfficialComment(competency.label, score, evidence, nextStep) : '')
+      || sentence(evidence);
+
+    if (!managerComment && !participantBand && !String(participant.evidence ?? '').trim()) return [];
+
+    const parts = [managerComment];
+    const participantEvidence = sentence(String(participant.evidence ?? ''));
+    if (participantBand || participantEvidence) {
+      const participantReading = participantBand
+        ? `Na autoavaliação, o colaborador se percebeu na faixa “${bandLabel(participantBand)}”`
+        : 'Na autoavaliação, o colaborador registrou sua perspectiva';
+      parts.push(participantEvidence
+        ? `${participantReading} e destacou: ${participantEvidence}`
+        : `${participantReading}.`);
+    }
+
+    if (managerBand) {
+      const scoreLabel = Number.isFinite(score) ? ` (${scoreText(score)})` : '';
+      parts.push(
+        participantBand && participantBand === managerBand
+          ? `As perspectivas convergiram, e a avaliação final permaneceu em “${bandLabel(managerBand)}”${scoreLabel}.`
+          : `Após a conversa, a avaliação final do gestor ficou em “${bandLabel(managerBand)}”${scoreLabel}.`,
+      );
+    }
+
+    return [{ key: competency.key, label: competency.label, summary: parts.filter(Boolean).join(' ') }];
+  });
+}
+
 export function defaultCompetencyCycleLabel(date = new Date()) {
   const semester = date.getMonth() < 6 ? '1º semestre' : '2º semestre';
   return `${semester} de ${date.getFullYear()}`;
