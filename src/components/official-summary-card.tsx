@@ -1,6 +1,6 @@
 import { CopySummary } from '@/components/copy-summary';
 
-export function OfficialSummaryCard({ summary }: { summary: string | null }) {
+export function OfficialSummaryCard({ summary, recordId }: { summary: string | null; recordId: string }) {
   if (!summary) return null;
 
   return (
@@ -11,7 +11,12 @@ export function OfficialSummaryCard({ summary }: { summary: string | null }) {
       <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, border: '1px solid var(--line)', borderRadius: 14, padding: 16, background: 'var(--surface-soft)', marginBottom: 14 }}>
         {summary}
       </div>
-      <CopySummary text={summary} />
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <CopySummary text={summary} />
+        <a className="button buttonSecondary" href={`/records/${recordId}/pdf`} download>
+          Baixar PDF operacional
+        </a>
+      </div>
     </section>
   );
 }

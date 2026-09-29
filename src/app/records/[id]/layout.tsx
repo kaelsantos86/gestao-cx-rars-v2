@@ -55,7 +55,7 @@ export default async function RecordLayout({
       {children}
       {summary && (
         <div className="page" style={{ paddingTop: 0 }}>
-          <OfficialSummaryCard summary={summary} />
+          <OfficialSummaryCard summary={summary} recordId={id} />
         </div>
       )}
     </>

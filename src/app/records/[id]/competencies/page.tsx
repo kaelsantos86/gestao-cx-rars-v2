@@ -9,6 +9,7 @@ import { getCompetencyRecord } from '@/lib/data/records';
 import {
   bandForScore,
   bandLabel,
+  averageScore,
   buildAutomaticOfficialComment,
   buildCompetencyOfficialSummaries,
   competencies,
@@ -238,7 +239,7 @@ export default async function CompetencyManagerPage({
   const initialAssessments = (payload.initialAssessments ?? {}) as Record<string, any>;
   const finalAssessments = (payload.finalAssessments ?? initialAssessments) as Record<string, any>;
   const response = (record.latestResponse?.response_payload ?? {}) as Record<string, any>;
-  const participantCompetencies = (response.competencies ?? {}) as Record<string, { band?: string; evidence?: string }>;
+  const participantCompetencies = (response.competencies ?? {}) as Record<string, { band?: string; score?: number; evidence?: string }>;
   const participantOverview = (response.overview ?? {}) as Record<string, string>;
   const participantSubmitted = Boolean(record.latestResponse?.is_submitted);
   const participantPath = query.invite ? `/participate/competencies/${query.invite}` : null;
@@ -293,13 +294,14 @@ export default async function CompetencyManagerPage({
                 const manager = finalAssessments[competency.key] ?? initialAssessments[competency.key] ?? {};
                 const managerBand = bandForScore(Number(manager.score)) ?? manager.band;
                 const participant = participantCompetencies[competency.key] ?? {};
+                const average = averageScore(manager.score, participant.score);
                 return (
                   <details className="competencyAccordion" key={competency.key}>
                     <summary className="competencySummary">
                       <span>
                         <strong>{competency.label}</strong>
                         <small>
-                          Gestor: {managerBand ? `${bandLabel(managerBand)} · ${typeof manager.score === 'number' ? scoreText(manager.score) : '—'}` : '—'} · Colaborador: {participantSubmitted ? bandLabel(participant.band) : '—'}
+                          Gestor: {managerBand ? `${bandLabel(managerBand)} · ${typeof manager.score === 'number' ? scoreText(manager.score) : '—'}` : '—'} · Colaborador: {participantSubmitted ? `${bandLabel(participant.band)} · ${typeof participant.score === 'number' ? scoreText(participant.score) : 'nota não registrada'}` : '—'} · Média: {average === null ? 'indisponível' : scoreText(average)}
                         </small>
                       </span>
                       <span className="badge">{comparisonLabel(managerBand ?? undefined, participant.band)}</span>

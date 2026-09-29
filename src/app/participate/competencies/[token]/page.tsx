@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getParticipantCompetencies } from '@/lib/data/records';
-import { competencies, competencyBands } from '@/lib/competencies';
+import { competencies, competencyBands, isScoreValidForBand } from '@/lib/competencies';
 
 async function saveResponse(formData: FormData) {
   'use server';
@@ -10,10 +10,14 @@ async function saveResponse(formData: FormData) {
   const mode = String(formData.get('mode') ?? 'draft');
 
   const competencyResponses = Object.fromEntries(
-    competencies.map((competency) => [competency.key, {
-      band: String(formData.get(`band_${competency.key}`) ?? ''),
-      evidence: String(formData.get(`evidence_${competency.key}`) ?? '').trim(),
-    }]),
+    competencies.map((competency) => {
+      const rawScore = String(formData.get(`score_${competency.key}`) ?? '').trim();
+      return [competency.key, {
+        band: String(formData.get(`band_${competency.key}`) ?? ''),
+        score: rawScore ? Number(rawScore.replace(',', '.')) : null,
+        evidence: String(formData.get(`evidence_${competency.key}`) ?? '').trim(),
+      }];
+    }),
   );
 
   // Os campos antigos são preservados silenciosamente para não perder respostas de versões anteriores.
@@ -30,7 +34,11 @@ async function saveResponse(formData: FormData) {
       competencyBands.some((band) => band.value === competencyResponses[competency.key].band),
     );
     const completeEvidence = competencies.every((competency) => competencyResponses[competency.key].evidence.length > 0);
-    if (!validBands || !completeEvidence) {
+    const validScores = competencies.every((competency) => {
+      const answer = competencyResponses[competency.key];
+      return isScoreValidForBand(answer.score, answer.band);
+    });
+    if (!validBands || !validScores || !completeEvidence) {
       redirect(`/participate/competencies/${token}?incomplete=1`);
     }
   }
@@ -38,7 +46,7 @@ async function saveResponse(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.rpc('save_participant_response', {
     raw_token: token,
-    response: { competencies: competencyResponses, overview, competencyUxVersion: 2 },
+    response: { competencies: competencyResponses, overview, competencyUxVersion: 3 },
     submit_response: mode === 'submit',
   });
 
@@ -59,7 +67,7 @@ export default async function CompetencyParticipantPage({
   if (!data) notFound();
 
   const latest = data.latest_response ?? {};
-  const latestCompetencies = (latest.competencies ?? {}) as Record<string, { band?: string; evidence?: string }>;
+  const latestCompetencies = (latest.competencies ?? {}) as Record<string, { band?: string; score?: number; evidence?: string }>;
   const latestOverview = (latest.overview ?? {}) as Record<string, string>;
 
   return (
@@ -69,11 +77,11 @@ export default async function CompetencyParticipantPage({
       <p className="lead">Avalie sua percepção sobre cada uma das sete competências do Sicredi. Sua resposta ficará separada da avaliação do gestor e será usada para comparação na conversa.</p>
 
       <div className="notice" style={{ marginBottom: 18 }}>
-        Para cada competência, escolha a faixa que melhor representa seu semestre e registre um exemplo concreto. Não tente adivinhar a avaliação do gestor: o valor deste formulário é justamente comparar as duas leituras.
+        Para cada competência, escolha a faixa, informe sua nota dentro dela e registre um exemplo concreto. Não tente adivinhar a avaliação do gestor: o valor deste formulário é justamente comparar as duas leituras.
       </div>
       {query.saved && <div className="notice" style={{ marginBottom: 18 }}>Rascunho salvo. Você pode continuar pelo mesmo link.</div>}
       {query.submitted && <div className="notice" style={{ marginBottom: 18 }}>Autoavaliação enviada. Sua leitura já está disponível para comparação com o gestor.</div>}
-      {query.incomplete && <div className="notice" style={{ marginBottom: 18 }}>Para enviar, avalie as sete competências e inclua um exemplo/evidência em cada uma.</div>}
+      {query.incomplete && <div className="notice" style={{ marginBottom: 18 }}>Para enviar, informe faixa, nota compatível e exemplo/evidência nas sete competências.</div>}
       {query.error && <div className="notice" style={{ marginBottom: 18 }}>Não foi possível salvar esta versão. Tente novamente pelo link original.</div>}
       {data.locked && <div className="notice" style={{ marginBottom: 18 }}>Este ciclo foi concluído. Sua autoavaliação está em modo somente leitura.</div>}
 
@@ -86,7 +94,7 @@ export default async function CompetencyParticipantPage({
         <section className="card">
           <p className="eyebrow">Sete competências</p>
           <h2>Sua leitura do semestre</h2>
-          <p className="muted">A faixa é qualitativa. O gestor trabalha com a nota oficial e a plataforma fará o comparativo entre as duas perspectivas.</p>
+          <p className="muted">Use a régua de 0,00 a 1,20. A nota do gestor continua sendo a oficial; sua nota permite visualizar as duas perspectivas e a média.</p>
 
           <div className="grid" style={{ gap: 14 }}>
             {competencies.map((competency, index) => (
@@ -114,8 +122,25 @@ export default async function CompetencyParticipantPage({
                         <option key={band.value} value={band.value}>{band.label}</option>
                       ))}
                     </select>
+                    <small className="muted">Não atende: 0,00–0,79 · Parcial: 0,80–0,99 · Atende: 1,00–1,10 · Supera: 1,11–1,20.</small>
                   </div>
                   <div className="field">
+                    <label htmlFor={`score_${competency.key}`}>Qual é a sua nota nesta faixa?</label>
+                    <input
+                      id={`score_${competency.key}`}
+                      name={`score_${competency.key}`}
+                      type="number"
+                      min="0"
+                      max="1.2"
+                      step="0.01"
+                      inputMode="decimal"
+                      disabled={data.locked}
+                      required
+                      defaultValue={latestCompetencies[competency.key]?.score ?? ''}
+                      placeholder="Ex.: 1,05"
+                    />
+                  </div>
+                  <div className="field" style={{ gridColumn: '1 / -1' }}>
                     <label htmlFor={`evidence_${competency.key}`}>Exemplo ou evidência do semestre</label>
                     <textarea
                       id={`evidence_${competency.key}`}

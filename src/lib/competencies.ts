@@ -53,8 +53,8 @@ export function bandForScore(score: number): CompetencyBand | null {
   return 'exceeds';
 }
 
-export function isScoreValidForBand(score: number, band: string) {
-  return bandForScore(score) === band;
+export function isScoreValidForBand(score: unknown, band: string) {
+  return hasNumericScore(score) && bandForScore(Number(score)) === band;
 }
 
 export function bandLabel(value: string | undefined | null) {
@@ -67,6 +67,17 @@ export function bandHelp(value: string | undefined | null) {
 
 export function scoreText(value: number) {
   return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function hasNumericScore(value: unknown): value is number | string {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+}
+
+export function averageScore(managerScore: unknown, participantScore: unknown) {
+  if (!hasNumericScore(managerScore) || !hasNumericScore(participantScore)) return null;
+  const manager = Number(managerScore);
+  const participant = Number(participantScore);
+  return (manager + participant) / 2;
 }
 
 function sentence(value: string) {
@@ -115,6 +126,8 @@ export function buildCompetencyOfficialSummaries(
     const assessment = (assessments[competency.key] ?? {}) as Record<string, any>;
     const participant = (participantCompetencies[competency.key] ?? {}) as Record<string, any>;
     const score = Number(assessment.score);
+    const participantScore = Number(participant.score);
+    const average = averageScore(assessment.score, participant.score);
     const managerBand = bandForScore(score) ?? String(assessment.band ?? '');
     const participantBand = String(participant.band ?? '');
     const evidence = String(assessment.evidence ?? '').trim();
@@ -128,8 +141,11 @@ export function buildCompetencyOfficialSummaries(
     const parts = [managerComment];
     const participantEvidence = sentence(String(participant.evidence ?? ''));
     if (participantBand || participantEvidence) {
+      const participantScoreLabel = hasNumericScore(participant.score)
+        ? ` (${scoreText(participantScore)})`
+        : '';
       const participantReading = participantBand
-        ? `Na autoavaliação, o colaborador se percebeu na faixa “${bandLabel(participantBand)}”`
+        ? `Na autoavaliação, o colaborador se percebeu na faixa “${bandLabel(participantBand)}”${participantScoreLabel}`
         : 'Na autoavaliação, o colaborador registrou sua perspectiva';
       parts.push(participantEvidence
         ? `${participantReading} e destacou: ${participantEvidence}`
@@ -143,6 +159,12 @@ export function buildCompetencyOfficialSummaries(
           ? `As perspectivas convergiram, e a avaliação final permaneceu em “${bandLabel(managerBand)}”${scoreLabel}.`
           : `Após a conversa, a avaliação final do gestor ficou em “${bandLabel(managerBand)}”${scoreLabel}.`,
       );
+    }
+
+    if (average !== null) {
+      parts.push(`A média entre as duas notas é ${scoreText(average)}.`);
+    } else if (participantBand) {
+      parts.push('A média numérica não está disponível porque esta autoavaliação registrou somente a faixa, sem uma nota exata.');
     }
 
     return [{ key: competency.key, label: competency.label, summary: parts.filter(Boolean).join(' ') }];

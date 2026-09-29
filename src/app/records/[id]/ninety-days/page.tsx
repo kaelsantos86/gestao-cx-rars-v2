@@ -242,6 +242,7 @@ export default async function NinetyDayManagerPage({
           {ninetyDayDimensions.map((dimension) => {
             const manager = Number(managerRatings[dimension.key] ?? 0);
             const participant = participantRatings[dimension.key];
+            const average = participant ? (manager + participant) / 2 : null;
             return (
               <div key={dimension.key} style={{ border: '1px solid var(--line)', borderRadius: 14, padding: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -251,6 +252,7 @@ export default async function NinetyDayManagerPage({
                 <div style={{ display: 'flex', gap: 20, marginTop: 12, flexWrap: 'wrap' }}>
                   <span><strong>Gestor:</strong> {manager || '—'}</span>
                   <span><strong>Colaborador:</strong> {participant || '—'}</span>
+                  <span><strong>Média:</strong> {average === null ? '—' : average.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
             );
