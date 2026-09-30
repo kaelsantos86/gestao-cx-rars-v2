@@ -1,16 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { generateRecordPdf } from '@/app/records/pdf-actions';
 
 type DownloadState = 'idle' | 'loading' | 'ready' | 'error';
-
-function filenameFromDisposition(disposition: string | null) {
-  const encoded = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  if (encoded) return decodeURIComponent(encoded.replace(/["']/g, ''));
-
-  const plain = disposition?.match(/filename="?([^";]+)"?/i)?.[1];
-  return plain?.trim() || 'gestao-cx-rars-avaliacao.pdf';
-}
 
 function saveWithBrowser(file: File) {
   const url = URL.createObjectURL(file);
@@ -68,19 +61,16 @@ export function PdfDownloadButton({ recordId }: { recordId: string }) {
     setPreparedFile(null);
 
     try {
-      const response = await fetch(`/records/${recordId}/download.pdf`, {
-        credentials: 'same-origin',
-        cache: 'no-store',
-      });
+      const result = await generateRecordPdf(recordId);
+      if (!result.ok || !result.base64 || result.bytes <= 0) throw new Error(result.error);
 
-      if (!response.ok) throw new Error(`pdf_request_${response.status}`);
+      const binary = window.atob(result.base64);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      const signature = String.fromCharCode(...bytes.slice(0, 5));
+      if (!signature.startsWith('%PDF-')) throw new Error('invalid_pdf');
 
-      const blob = await response.blob();
-      const signature = new TextDecoder('ascii').decode((await blob.slice(0, 5).arrayBuffer()));
-      if (!signature.startsWith('%PDF-') || blob.size === 0) throw new Error('invalid_pdf');
-
-      const filename = filenameFromDisposition(response.headers.get('Content-Disposition'));
-      const file = new File([blob], filename.endsWith('.pdf') ? filename : `${filename}.pdf`, {
+      const filename = result.filename.endsWith('.pdf') ? result.filename : `${result.filename}.pdf`;
+      const file = new File([bytes], filename, {
         type: 'application/pdf',
       });
 
