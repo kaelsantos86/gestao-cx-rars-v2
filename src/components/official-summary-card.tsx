@@ -13,7 +13,7 @@ export function OfficialSummaryCard({ summary, recordId }: { summary: string | n
       </div>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <CopySummary text={summary} />
-        <a className="button buttonSecondary" href={`/records/${recordId}/pdf`} download>
+        <a className="button buttonSecondary" href={`/records/${recordId}/download.pdf`}>
           Baixar PDF operacional
         </a>
       </div>

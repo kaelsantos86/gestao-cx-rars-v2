@@ -50,7 +50,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(pdf.byteLength),
       'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
     },
   });
 }
