@@ -20,7 +20,7 @@ export function OfficialSummaryCard({
       </div>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <CopySummary text={summary} />
-        <PdfDownloadButton preparedPdf={preparedPdf} />
+        <PdfDownloadButton preparedPdf={preparedPdf} summary={summary} />
       </div>
     </section>
   );
