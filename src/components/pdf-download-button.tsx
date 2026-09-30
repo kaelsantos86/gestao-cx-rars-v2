@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { generateRecordPdf } from '@/app/records/pdf-actions';
 
 type DownloadState = 'idle' | 'loading' | 'ready' | 'error';
+type PreparedPdf = { base64: string; filename: string; bytes: number };
 
 function saveWithBrowser(file: File) {
   const url = URL.createObjectURL(file);
@@ -23,9 +23,10 @@ function canShareFile(file: File) {
     && navigator.canShare({ files: [file] });
 }
 
-export function PdfDownloadButton({ recordId }: { recordId: string }) {
+export function PdfDownloadButton({ preparedPdf }: { preparedPdf: PreparedPdf | null }) {
   const [state, setState] = useState<DownloadState>('idle');
   const [preparedFile, setPreparedFile] = useState<File | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   async function sharePreparedFile(file: File) {
     if (!canShareFile(file)) {
@@ -59,17 +60,17 @@ export function PdfDownloadButton({ recordId }: { recordId: string }) {
 
     setState('loading');
     setPreparedFile(null);
+    setErrorCode(null);
 
     try {
-      const result = await generateRecordPdf(recordId);
-      if (!result.ok || !result.base64 || result.bytes <= 0) throw new Error(result.error);
+      if (!preparedPdf?.base64 || preparedPdf.bytes <= 0) throw new Error('pdf_not_prepared');
 
-      const binary = window.atob(result.base64);
+      const binary = window.atob(preparedPdf.base64);
       const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
       const signature = String.fromCharCode(...bytes.slice(0, 5));
       if (!signature.startsWith('%PDF-')) throw new Error('invalid_pdf');
 
-      const filename = result.filename.endsWith('.pdf') ? result.filename : `${result.filename}.pdf`;
+      const filename = preparedPdf.filename.endsWith('.pdf') ? preparedPdf.filename : `${preparedPdf.filename}.pdf`;
       const file = new File([bytes], filename, {
         type: 'application/pdf',
       });
@@ -77,7 +78,8 @@ export function PdfDownloadButton({ recordId }: { recordId: string }) {
       setPreparedFile(file);
       setState('ready');
       await sharePreparedFile(file);
-    } catch {
+    } catch (error) {
+      setErrorCode(error instanceof Error ? error.message : 'unknown_error');
       setState('error');
     }
   }
@@ -107,7 +109,7 @@ export function PdfDownloadButton({ recordId }: { recordId: string }) {
       )}
       {state === 'error' && (
         <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--danger, #9f2d2d)' }} role="alert">
-          Não foi possível preparar o PDF. Tente novamente sem sair desta tela.
+          Não foi possível preparar o PDF. Código: {errorCode ?? 'unknown_error'}.
         </p>
       )}
     </div>

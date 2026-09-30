@@ -1,7 +1,13 @@
 import { CopySummary } from '@/components/copy-summary';
 import { PdfDownloadButton } from '@/components/pdf-download-button';
 
-export function OfficialSummaryCard({ summary, recordId }: { summary: string | null; recordId: string }) {
+export function OfficialSummaryCard({
+  summary,
+  preparedPdf,
+}: {
+  summary: string | null;
+  preparedPdf: { base64: string; filename: string; bytes: number } | null;
+}) {
   if (!summary) return null;
 
   return (
@@ -14,7 +20,7 @@ export function OfficialSummaryCard({ summary, recordId }: { summary: string | n
       </div>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <CopySummary text={summary} />
-        <PdfDownloadButton recordId={recordId} />
+        <PdfDownloadButton preparedPdf={preparedPdf} />
       </div>
     </section>
   );
