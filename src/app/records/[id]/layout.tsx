@@ -56,7 +56,10 @@ export default async function RecordLayout({
           record.cycle_label,
         );
 
-        if (employee && record.manager_id === auth.user.id) {
+        // A consulta já está protegida pela sessão e pelas políticas RLS.
+        // Registros migrados da V1 podem conservar um manager_id histórico,
+        // portanto esse campo não deve bloquear a preparação do PDF.
+        if (employee) {
           try {
             const pdf = await createEvaluationPdf({
               record,

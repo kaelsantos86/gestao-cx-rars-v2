@@ -16,7 +16,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     .is('deleted_at', null)
     .maybeSingle();
 
-  if (recordError || !record || record.manager_id !== auth.user.id) {
+  // O acesso ao registro já foi autorizado pela sessão e pelas políticas RLS.
+  // Não compare manager_id: registros migrados podem manter o vínculo histórico.
+  if (recordError || !record) {
     return new Response('Registro não encontrado', { status: 404 });
   }
 
