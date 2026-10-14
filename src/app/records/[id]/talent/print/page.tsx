@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { PrintButton } from '@/components/print-button';
+import { TalentPdfDownloadButton } from '@/components/talent-pdf-download-button';
+import { talentPdfFilename } from '@/lib/talent-pdf';
 import { getTalentRecord } from '@/lib/data/records';
 import { type TalentSourceSnapshot, talentPurposeLabel } from '@/lib/talent';
 
@@ -37,7 +38,10 @@ export default async function TalentPrintPage({ params }: { params: Promise<{ id
 
       <div className="printActions" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
         <Link className="button buttonSecondary" href={`/records/${record.id}/talent`}>← Voltar</Link>
-        <PrintButton />
+        <TalentPdfDownloadButton
+          url={'/records/' + record.id + '/talent/download.pdf'}
+          filename={talentPdfFilename(record.employee.display_name)}
+        />
       </div>
 
       <header className="talentPrintHeader">
