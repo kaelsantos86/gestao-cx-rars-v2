@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { TalentPdfDownloadButton } from '@/components/talent-pdf-download-button';
+import { talentPdfFilename } from '@/lib/talent-pdf';
 import { notFound, redirect } from 'next/navigation';
 import { requireManager } from '@/lib/auth';
 import { getTalentRecord } from '@/lib/data/records';
@@ -327,8 +329,14 @@ export default async function TalentManagerPage({
         <section className="card" style={{ marginTop: 18 }}>
           <p className="eyebrow">Versão executiva</p>
           <h2 style={{ marginTop: 0 }}>Apresentação e PDF</h2>
-          <p className="muted">Abra a versão limpa para apresentação ou impressão em PDF. Esta fotografia permanece vinculada às fontes usadas neste momento.</p>
-          <Link className="button" href={`/records/${record.id}/talent/print`}>Abrir versão executiva</Link>
+          <p className="muted">Visualize a apresentação ou gere o arquivo PDF diretamente. O conteúdo concluído e as fontes utilizadas são preservados.</p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <Link className="button buttonSecondary" href={`/records/${record.id}/talent/print`}>Visualizar apresentação</Link>
+            <TalentPdfDownloadButton
+              url={'/records/' + record.id + '/talent/download.pdf'}
+              filename={talentPdfFilename(record.employee.display_name)}
+            />
+          </div>
         </section>
       )}
     </main>
