@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getParticipantPdi } from '@/lib/data/records';
-import { pdiAxes, pdiAxisLabel, pdiParticipantFields } from '@/lib/pdi';
+import { pdiAxes, pdiAxisLabel, pdiParticipantFields, pdiOptionalParticipantFields } from '@/lib/pdi';
 
 async function savePerspective(formData: FormData) {
   'use server';
@@ -9,28 +9,28 @@ async function savePerspective(formData: FormData) {
   const intent = String(formData.get('intent') ?? 'draft');
   const submit = intent === 'submit';
 
-  const overview = Object.fromEntries(
+  const current = await getParticipantPdi(token);
+  if (!current || current.locked) notFound();
+  const previous = (current.latest_response ?? {}) as Record<string, any>;
+  const overview = { ...previous.overview, ...Object.fromEntries(
     pdiParticipantFields.map(([key]) => [key, String(formData.get(key) ?? '').trim()]),
-  );
+  ) };
   const axes = pdiAxes
     .filter((axis) => formData.get(`axis_${axis.value}`) === 'on')
     .map((axis) => axis.value);
 
-  if (submit) {
-    const required = pdiParticipantFields.filter(([key]) => key !== 'observations');
-    if (required.some(([key]) => !overview[key]) || axes.length === 0) {
-      redirect(`/participate/pdi/${encodeURIComponent(token)}?required=1`);
-    }
-  }
+  const required = pdiParticipantFields.filter(([key]) => !pdiOptionalParticipantFields.has(key));
+  const incomplete = submit && (required.some(([key]) => !overview[key]) || axes.length === 0);
 
   const supabase = await createClient();
   const { error } = await supabase.rpc('save_participant_response', {
     raw_token: token,
-    response: { overview, axes },
-    submit_response: submit,
+    response: { ...previous, overview, axes },
+    submit_response: submit && !incomplete,
   });
   if (error) throw error;
 
+  if (incomplete) redirect(`/participate/pdi/${encodeURIComponent(token)}?required=1&saved=1`);
   redirect(`/participate/pdi/${encodeURIComponent(token)}?${submit ? 'submitted=1' : 'saved=1'}`);
 }
 
@@ -57,14 +57,14 @@ export default async function PdiParticipantPage({
     <main className="page">
       <p className="eyebrow">PDI Evolutivo · Sua perspectiva</p>
       <h1 className="pageTitle">{record.employee_name}</h1>
-      <p className="lead">Antes da conversa, registre como você enxerga seu momento, sua direção profissional e as experiências que podem apoiar seu desenvolvimento.</p>
+      <p className="lead">Seu PDI começa com sua reflexão. Conte suas necessidades, expectativas, projeção de carreira e metas para o próximo ano. Seu gestor lerá suas respostas e vocês definirão juntos as prioridades do semestre.</p>
 
       {query.saved && <div className="notice" style={{ marginBottom: 18 }}>Rascunho salvo. Você pode voltar pelo mesmo link e continuar enquanto o PDI não for ativado.</div>}
       {query.submitted && <div className="notice" style={{ marginBottom: 18 }}>Perspectiva enviada. Ela ficará disponível ao gestor para a construção compartilhada do PDI.</div>}
       {query.required && <div className="notice" style={{ marginBottom: 18 }}>Preencha os campos principais e selecione ao menos um eixo de interesse antes de enviar.</div>}
       {locked && <div className="notice" style={{ marginBottom: 18 }}>Este PDI já foi ativado ou encerrado. Sua perspectiva original está preservada e não pode mais ser alterada.</div>}
 
-      <details className="workspaceAccordion" open>
+      {locked && <><details className="workspaceAccordion">
         <summary className="workspaceSummary">
           <span><strong>Contexto compartilhado</strong><small>Direção registrada pelo gestor antes da conversa.</small></span>
           <span className="competencyChevron" aria-hidden="true">⌄</span>
@@ -95,6 +95,8 @@ export default async function PdiParticipantPage({
         </div>
       </details>
 
+      </>}
+
       <form action={savePerspective} className="grid" style={{ gap: 18, marginTop: 18 }}>
         <input type="hidden" name="token" value={token} />
 
@@ -104,7 +106,7 @@ export default async function PdiParticipantPage({
           <div className="grid grid2">
             {pdiParticipantFields.map(([key, label]) => (
               <div className="field" key={key}>
-                <label htmlFor={key}>{label}{key === 'observations' && <span className="muted"> (opcional)</span>}</label>
+                <label htmlFor={key}>{label}{pdiOptionalParticipantFields.has(key) && <span className="muted"> (opcional)</span>}</label>
                 <textarea
                   id={key}
                   name={key}

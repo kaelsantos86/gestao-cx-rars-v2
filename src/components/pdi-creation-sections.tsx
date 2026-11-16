@@ -70,7 +70,7 @@ export function PdiDirectionSection({ defaultValues = {} }: { defaultValues?: Re
     <details className="workspaceAccordion" open>
       <summary className="workspaceSummary">
         <span>
-          <strong>2. Direção do ciclo</strong>
+          <strong>Leitura do gestor</strong>
           <small>Contexto, fortalezas, aspiração e direção antes das prioridades.</small>
         </span>
         <span className="badge">5 essenciais</span>
@@ -88,7 +88,6 @@ export function PdiDirectionSection({ defaultValues = {} }: { defaultValues?: Re
                 name={key}
                 defaultValue={defaultValues[key] ?? ''}
                 rows={4}
-                required
                 placeholder={contextPlaceholders[key]}
               />
             </div>
@@ -124,8 +123,8 @@ export function PdiDirectionSection({ defaultValues = {} }: { defaultValues?: Re
   );
 }
 
-function PriorityCard({ index }: { index: number }) {
-  const [title, setTitle] = useState('');
+function PriorityCard({ index, priority = {} }: { index: number; priority?: Record<string, any> }) {
+  const [title, setTitle] = useState(String(priority.title ?? ''));
   const hasTitle = title.trim().length > 0;
 
   return (
@@ -138,16 +137,17 @@ function PriorityCard({ index }: { index: number }) {
         <span className="competencyChevron" aria-hidden="true">⌄</span>
       </summary>
       <div className="competencyAccordionBody grid grid2">
+        <input type="hidden" name={`priority_${index}_id`} value={priority.id ?? `priority_${index}`} />
         <div className="field">
           <label htmlFor={`priority_${index}_axis`}>Eixo</label>
-          <select id={`priority_${index}_axis`} name={`priority_${index}_axis`} defaultValue="">
+          <select id={`priority_${index}_axis`} name={`priority_${index}_axis`} defaultValue={priority.axis ?? ""}>
             <option value="">Selecione</option>
             {pdiAxes.map((axis) => <option key={axis.value} value={axis.value}>{axis.label}</option>)}
           </select>
         </div>
         <div className="field">
           <label htmlFor={`priority_${index}_relatedCompetency`}>Competência relacionada <span className="muted">(opcional)</span></label>
-          <select id={`priority_${index}_relatedCompetency`} name={`priority_${index}_relatedCompetency`} defaultValue="">
+          <select id={`priority_${index}_relatedCompetency`} name={`priority_${index}_relatedCompetency`} defaultValue={priority.relatedCompetency ?? ""}>
             <option value="">Sem vínculo obrigatório</option>
             {relatedCompetencies.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
@@ -162,25 +162,27 @@ function PriorityCard({ index }: { index: number }) {
             placeholder="Ex.: Conduzir pactuações multiarea com clareza e influência."
           />
         </div>
-        <div className="field"><label>Estado atual</label><textarea name={`priority_${index}_currentState`} rows={4} placeholder="Padrão atual com fatos, sem desqualificar a pessoa." /></div>
-        <div className="field"><label>Estado desejado</label><textarea name={`priority_${index}_desiredState`} rows={4} placeholder="Comportamento ou resultado que indicará evolução." /></div>
-        <div className="field"><label>Prática ou experiência</label><textarea name={`priority_${index}_practice`} rows={4} placeholder="Situação real de trabalho em que a capacidade será praticada." /></div>
-        <div className="field"><label>Evidência natural</label><textarea name={`priority_${index}_evidence`} rows={4} placeholder="Produto ou efeito verificável do trabalho, sem microgestão." /></div>
-        <div className="field"><label>Apoio do gestor/organização</label><textarea name={`priority_${index}_support`} rows={4} placeholder="Contexto, exposição, conexão, recurso ou debrief necessário." /></div>
-        <div className="field"><label>Autonomia</label><textarea name={`priority_${index}_autonomy`} rows={4} placeholder="O que a pessoa pode decidir e quais situações pedem alinhamento." /></div>
+        <div className="field"><label>Estado atual</label><textarea name={`priority_${index}_currentState`} defaultValue={priority.currentState ?? ""} rows={4} placeholder="Padrão atual com fatos, sem desqualificar a pessoa." /></div>
+        <div className="field"><label>Estado desejado</label><textarea name={`priority_${index}_desiredState`} defaultValue={priority.desiredState ?? ""} rows={4} placeholder="Comportamento ou resultado que indicará evolução." /></div>
+        <div className="field"><label>Prática ou experiência</label><textarea name={`priority_${index}_practice`} defaultValue={priority.practice ?? ""} rows={4} placeholder="Situação real de trabalho em que a capacidade será praticada." /></div>
+        <div className="field"><label>Evidência natural</label><textarea name={`priority_${index}_evidence`} defaultValue={priority.evidence ?? ""} rows={4} placeholder="Produto ou efeito verificável do trabalho, sem microgestão." /></div>
+        <div className="field"><label>Apoio do gestor/organização</label><textarea name={`priority_${index}_support`} defaultValue={priority.support ?? ""} rows={4} placeholder="Contexto, exposição, conexão, recurso ou debrief necessário." /></div>
+        <div className="field"><label>Cursos, formação e aplicação prática (opcional)</label><textarea name={`priority_${index}_learningPlan`} defaultValue={priority.learningPlan ?? ""} rows={3} /></div>
+        <div className="field"><label>Prazo ou marco esperado (opcional)</label><input name={`priority_${index}_targetDate`} defaultValue={priority.targetDate ?? ""} placeholder="Ex.: até junho de 2027" /></div>
+        <div className="field"><label>Autonomia</label><textarea name={`priority_${index}_autonomy`} defaultValue={priority.autonomy ?? ""} rows={4} placeholder="O que a pessoa pode decidir e quais situações pedem alinhamento." /></div>
       </div>
     </details>
   );
 }
 
-export function PdiPrioritiesSection() {
+export function PdiPrioritiesSection({ priorities = [] }: { priorities?: Record<string, any>[] }) {
   return (
     <section className="card">
       <p className="eyebrow">3. Prioridades</p>
       <h2>Até 3 movimentos de desenvolvimento</h2>
-      <p className="muted">A prioridade 1 é obrigatória. Abra as prioridades 2 e 3 somente se elas realmente aumentarem foco, e não o transformarem em checklist.</p>
+      <p className="muted">Defina ao menos uma prioridade antes dos acordos. Você pode salvar uma proposta parcial. Abra as prioridades 2 e 3 somente se elas realmente aumentarem foco, e não o transformarem em checklist.</p>
       <div className="grid" style={{ gap: 12 }}>
-        {[1, 2, 3].map((index) => <PriorityCard key={index} index={index} />)}
+        {[1, 2, 3].map((index) => <PriorityCard key={index} index={index} priority={priorities[index - 1]} />)}
       </div>
     </section>
   );

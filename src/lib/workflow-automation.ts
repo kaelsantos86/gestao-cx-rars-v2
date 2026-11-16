@@ -269,6 +269,8 @@ export function buildPdiFinalSummary(payloadInput: unknown, responseInput?: unkn
     const details = [
       desired ? `objetivo: ${desired}` : '',
       practice ? `prática: ${practice}` : '',
+      text(priority.learningPlan) ? `aprendizagem: ${text(priority.learningPlan)}` : '',
+      text(priority.targetDate) ? `prazo: ${text(priority.targetDate)}` : '',
       evidence ? `evidência: ${evidence}` : '',
     ].filter(Boolean);
     return details.length ? `${title} — ${details.join(' | ')}` : title;
@@ -606,6 +608,8 @@ export function buildPdiConversationGuide(
   ]).map((item) => excerpt(item)).slice(0, 3);
 
   const questions = unique([
+    text(overview.nextYearGoals) ? `Como as metas para o próximo ano — “${excerpt(overview.nextYearGoals)}” — se conectam ao desenvolvimento deste semestre?` : '',
+    text(overview.learningInterests) ? `Que aprendizagem e aplicação prática espera da formação que considera: “${excerpt(overview.learningInterests)}”?` : '',
     text(overview.desiredDevelopment) ? `Você indicou que gostaria de desenvolver: “${excerpt(overview.desiredDevelopment)}”. Qual mudança concreta no trabalho mostraria que isso avançou?` : '',
     text(overview.practicalExperience) ? `Você sugeriu esta experiência prática: “${excerpt(overview.practicalExperience)}”. Ela é viável e suficiente para gerar a evidência que buscamos?` : '',
     text(overview.desiredAutonomy) ? `Você busca mais autonomia em: “${excerpt(overview.desiredAutonomy)}”. Que limite de decisão podemos combinar para este ciclo?` : '',

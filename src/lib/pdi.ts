@@ -46,6 +46,9 @@ export const pdiParticipantFields = [
   ['professionalMoment', 'Como você descreve seu momento profissional hoje?'],
   ['recognizedStrengths', 'Quais fortalezas você reconhece e quer preservar?'],
   ['aspirationDirection', 'Que direção ou aspiração profissional faz sentido agora?'],
+  ['nextYearGoals', 'O que você deseja alcançar profissionalmente no próximo ano e como este semestre pode contribuir?'],
+  ['learningInterests', 'Que cursos, certificações ou formação você considera buscar, e como pretende aplicar o aprendizado?'],
+  ['developmentConditions', 'Que condições, recursos ou obstáculos precisam ser considerados?'],
   ['desiredDevelopment', 'O que você mais gostaria de desenvolver neste ciclo?'],
   ['practicalExperience', 'Que experiência prática ajudaria esse desenvolvimento?'],
   ['desiredAutonomy', 'Em que decisões ou situações você busca mais autonomia?'],
@@ -71,4 +74,19 @@ export function pdiAxisLabel(value: string) {
 export function defaultPdiCycleLabel(date = new Date()) {
   const semester = date.getMonth() < 6 ? '1º semestre' : '2º semestre';
   return `${semester} de ${date.getFullYear()}`;
+}
+
+export const pdiOptionalParticipantFields = new Set<string>(['observations', 'learningInterests', 'developmentConditions']);
+export const pdiEditableStatuses = ['draft', 'awaiting_participant', 'participant_submitted', 'in_conversation'];
+
+export function readPdiPriorities(formData: FormData, previous: Record<string, any>[] = [], strict = false) {
+  return [1, 2, 3].flatMap((index) => {
+    const keys = ['axis', 'title', 'currentState', 'desiredState', 'practice', 'evidence', 'support', 'autonomy', 'relatedCompetency', 'learningPlan', 'targetDate'];
+    const id = String(formData.get(`priority_${index}_id`) ?? `priority_${index}`);
+    const old = previous.find((item) => item.id === id) ?? previous[index - 1] ?? {};
+    const fields = Object.fromEntries(keys.map((key) => [key, formData.has(`priority_${index}_${key}`) ? String(formData.get(`priority_${index}_${key}`) ?? '').trim() : String(old[key] ?? '')]));
+    if (!Object.values(fields).some(Boolean)) return [];
+    if (strict && ['axis', 'title', 'desiredState', 'practice', 'evidence'].some((key) => !fields[key])) throw new Error(`incomplete_priority_${index}`);
+    return [{ ...old, ...fields, id }];
+  });
 }

@@ -5,36 +5,11 @@ import { getEmployee } from '@/lib/data/team';
 import { buildPdiSourceContext } from '@/lib/workflow-automation';
 import {
   defaultPdiCycleLabel,
-  pdiContextFields,
   pdiCycleTypes,
 } from '@/lib/pdi';
 import {
   PdiCycleTypeField,
-  PdiDirectionSection,
-  PdiPrioritiesSection,
-  PdiPrivateNotesSection,
 } from '@/components/pdi-creation-sections';
-
-function readPriority(formData: FormData, index: number) {
-  const fields = {
-    axis: String(formData.get(`priority_${index}_axis`) ?? '').trim(),
-    title: String(formData.get(`priority_${index}_title`) ?? '').trim(),
-    currentState: String(formData.get(`priority_${index}_currentState`) ?? '').trim(),
-    desiredState: String(formData.get(`priority_${index}_desiredState`) ?? '').trim(),
-    practice: String(formData.get(`priority_${index}_practice`) ?? '').trim(),
-    evidence: String(formData.get(`priority_${index}_evidence`) ?? '').trim(),
-    support: String(formData.get(`priority_${index}_support`) ?? '').trim(),
-    autonomy: String(formData.get(`priority_${index}_autonomy`) ?? '').trim(),
-    relatedCompetency: String(formData.get(`priority_${index}_relatedCompetency`) ?? '').trim(),
-  };
-
-  const touched = Object.values(fields).some(Boolean);
-  if (!touched) return null;
-
-  const required = [fields.axis, fields.title, fields.currentState, fields.desiredState, fields.practice, fields.evidence, fields.support, fields.autonomy];
-  if (required.some((value) => !value)) throw new Error(`incomplete_priority_${index}`);
-  return { id: `priority_${index}`, ...fields };
-}
 
 async function createPdi(formData: FormData) {
   'use server';
@@ -79,19 +54,8 @@ async function createPdi(formData: FormData) {
     redirect(`/team/${employeeId}/pdi/new?prerequisite=required`);
   }
 
-  const context = Object.fromEntries(
-    pdiContextFields.map(([key]) => [key, String(formData.get(key) ?? '').trim()]),
-  );
-  const requiredContext = ['contextAndRole', 'currentMoment', 'strengthsToPreserve', 'aspiration', 'developmentDirection'];
-  if (requiredContext.some((key) => !context[key])) throw new Error('missing_pdi_context');
-
   const extraordinaryReason = String(formData.get('extraordinaryReason') ?? '').trim();
   if (cycleType === 'extraordinary_review' && !extraordinaryReason) throw new Error('missing_extraordinary_reason');
-
-  const priorities = [1, 2, 3]
-    .map((index) => readPriority(formData, index))
-    .filter(Boolean);
-  if (priorities.length < 1 || priorities.length > 3) throw new Error('invalid_priority_count');
 
   const cycleLabel = String(formData.get('cycleLabel') ?? '').trim();
   if (!cycleLabel || !pdiCycleTypes.some((item) => item.value === cycleType)) throw new Error('invalid_pdi_cycle');
@@ -103,8 +67,9 @@ async function createPdi(formData: FormData) {
     cycleLabel,
     extraordinaryReason,
     ninetyDaysConfirmedWithoutV2Record: needsNinetyDays && !hasCompletedNinetyDays && ninetyDaysConfirmed,
-    ...context,
-    priorities,
+    workflowVersion: "collaborator_first",
+    priorities: [],
+    sourceReadings: sourceContext.sourceReadings,
     managerCommitment: sourceContext.managerSupport,
     sourceRecordIds: sources.map((source) => source.id),
     previousPdiId: previousPdi?.id ?? null,
@@ -192,8 +157,8 @@ export default async function NewPdiPage({
     <main className="page">
       <Link href={`/team/${id}`} className="muted" style={{ fontSize: 13 }}>← Voltar para o perfil</Link>
       <p className="eyebrow" style={{ marginTop: 20 }}>PDI Evolutivo · Gestor</p>
-      <h1 className="pageTitle">Construir ciclo de desenvolvimento</h1>
-      <p className="lead">{employee.displayName} · {employee.currentRole}. Poucas prioridades, prática real, evidência natural e autonomia.</p>
+      <h1 className="pageTitle">Iniciar escuta para o PDI</h1>
+      <p className="lead">{employee.displayName} · {employee.currentRole}. Primeiro, convide o colaborador a refletir sobre suas necessidades, expectativas e carreira. Depois, prepare sua leitura e construam o plano juntos.</p>
 
       {query.prerequisite === 'required' && (
         <div className="notice" style={{ marginBottom: 18 }}>
@@ -232,15 +197,9 @@ export default async function NewPdiPage({
           </label>
         </section>
 
-        <PdiDirectionSection defaultValues={{
-          strengthsToPreserve: sourceContext.strengthsToPreserve,
-          developmentDirection: sourceContext.developmentDirection,
-          sourceReadings: sourceContext.sourceReadings,
-        }} />
-        <PdiPrioritiesSection />
-        <PdiPrivateNotesSection />
+        <div className="notice">Ao abrir o ciclo, você poderá gerar o link de reflexão. Contexto, objetivos, cursos e compromissos serão definidos após o envio do colaborador.</div>
 
-        <div><button className="button" type="submit">Criar PDI Evolutivo</button></div>
+        <div><button className="button" type="submit">Abrir ciclo e preparar convite</button></div>
       </form>
     </main>
   );
