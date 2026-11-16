@@ -57,7 +57,9 @@ export default async function PdiParticipantPage({
     <main className="page">
       <p className="eyebrow">PDI Evolutivo · Sua perspectiva</p>
       <h1 className="pageTitle">{record.employee_name}</h1>
-      <p className="lead">Seu PDI começa com sua reflexão. Conte suas necessidades, expectativas, projeção de carreira e metas para o próximo ano. Seu gestor lerá suas respostas e vocês definirão juntos as prioridades do semestre.</p>
+      <p className="lead">Seu PDI começa com sua reflexão. Conte suas necessidades, expectativas, projeção de carreira e metas para o ano deste PDI. Seu gestor lerá suas respostas e vocês definirão juntos as prioridades do ciclo anual.</p>
+
+      <p className="muted">Ciclo anual: {record.cycle_label}</p>
 
       {query.saved && <div className="notice" style={{ marginBottom: 18 }}>Rascunho salvo. Você pode voltar pelo mesmo link e continuar enquanto o PDI não for ativado.</div>}
       {query.submitted && <div className="notice" style={{ marginBottom: 18 }}>Perspectiva enviada. Ela ficará disponível ao gestor para a construção compartilhada do PDI.</div>}

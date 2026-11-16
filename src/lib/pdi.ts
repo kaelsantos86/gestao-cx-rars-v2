@@ -1,7 +1,8 @@
 export const pdiCycleTypes = [
   { value: 'first_pdi', label: 'Primeiro PDI', help: 'Depois da devolutiva de 90 dias.' },
   { value: 'role_consolidation', label: 'Consolidação no papel', help: 'Quando a pessoa ainda estrutura consistência e autonomia na função.' },
-  { value: 'semiannual_evolution', label: 'Evolução semestral', help: 'Para renovar prioridades no ciclo regular.' },
+  // Preserve the stored key for compatibility with existing records.
+  { value: 'semiannual_evolution', label: 'Evolução anual', help: 'Para renovar prioridades em ciclos anuais.' },
   { value: 'extraordinary_review', label: 'Revisão extraordinária', help: 'Quando há mudança relevante de contexto, papel ou direção.' },
 ] as const;
 
@@ -46,7 +47,7 @@ export const pdiParticipantFields = [
   ['professionalMoment', 'Como você descreve seu momento profissional hoje?'],
   ['recognizedStrengths', 'Quais fortalezas você reconhece e quer preservar?'],
   ['aspirationDirection', 'Que direção ou aspiração profissional faz sentido agora?'],
-  ['nextYearGoals', 'O que você deseja alcançar profissionalmente no próximo ano e como este semestre pode contribuir?'],
+  ['nextYearGoals', 'O que você deseja alcançar profissionalmente no ano deste PDI e como este ciclo pode contribuir?'],
   ['learningInterests', 'Que cursos, certificações ou formação você considera buscar, e como pretende aplicar o aprendizado?'],
   ['developmentConditions', 'Que condições, recursos ou obstáculos precisam ser considerados?'],
   ['desiredDevelopment', 'O que você mais gostaria de desenvolver neste ciclo?'],
@@ -72,8 +73,8 @@ export function pdiAxisLabel(value: string) {
 }
 
 export function defaultPdiCycleLabel(date = new Date()) {
-  const semester = date.getMonth() < 6 ? '1º semestre' : '2º semestre';
-  return `${semester} de ${date.getFullYear()}`;
+  // In the final quarter, suggest the upcoming annual planning cycle.
+  return String(date.getFullYear() + (date.getMonth() >= 9 ? 1 : 0));
 }
 
 export const pdiOptionalParticipantFields = new Set<string>(['observations', 'learningInterests', 'developmentConditions']);

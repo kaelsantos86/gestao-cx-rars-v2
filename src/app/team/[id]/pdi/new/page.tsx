@@ -174,8 +174,9 @@ export default async function NewPdiPage({
           <h2>De onde este PDI parte</h2>
           <div className="grid grid2">
             <div className="field">
-              <label htmlFor="cycleLabel">Ciclo</label>
+              <label htmlFor="cycleLabel">Ano do PDI · ciclo anual</label>
               <input id="cycleLabel" name="cycleLabel" defaultValue={defaultPdiCycleLabel()} required />
+              <small className="fieldHelp">Planeje o ano indicado com base na trajetória e nos aprendizados do ano anterior. Ex.: PDI 2027 com contexto de 2026.</small>
             </div>
             <PdiCycleTypeField suggestedType={suggestedType} />
           </div>
